@@ -9,6 +9,8 @@ nibabel==5.3.3
 pandas==1.5.3
 joblib==1.5.3
 batchgenerators==0.25.3
+python-gdcm==3.0.26
+dicom2nifti==2.6.0
 nnunet==1.7.1
 pytorch-lightning==1.4.2
 torchmetrics==0.7.3
