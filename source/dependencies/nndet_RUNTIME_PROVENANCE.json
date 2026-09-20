@@ -1,0 +1,6 @@
+{
+  "actual_imported_package": "/home/jovyan/rtx4claude-datavol-1/external/nnDetection/nndet",
+  "runtime_copy": "nndet",
+  "unused_earlier_copy": "nndet_spike_reference_not_runtime",
+  "note": "Compiled extension is environment-specific; existing detector script probes CUDA NMS and has CPU fallback."
+}

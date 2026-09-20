@@ -1,0 +1,7 @@
+{
+  "epochs": 11,
+  "max_epochs": 100,
+  "min_stop_epoch": 30,
+  "patience": 20,
+  "selection": "lowest balanced source-dev BCE"
+}

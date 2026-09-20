@@ -1,0 +1,68 @@
+{
+  "version": "MRofficial7_S32corrected_CTE16_r5",
+  "mr_policy": "detector_control",
+  "architecture": "nnDetection + custom crop segmentation + location classifiers + TA36 auxiliary vessel ensemble",
+  "configuration_role": "Frozen inference settings inventory. Detailed configs/plans and existing source implement these settings; do not tune this inventory independently.",
+  "MR": {
+    "segmentation": "models/segmentation_MR.pt",
+    "patch_size": [
+      48,
+      48,
+      48
+    ],
+    "detector_threshold": 0.955078125,
+    "foreground_threshold": 0.5,
+    "dense_branch": false,
+    "F14_filter": false,
+    "S17_fallback": false
+  },
+  "CT": {
+    "segmentation": "models/segmentation_CT.pt",
+    "patch_size": [
+      32,
+      32,
+      32
+    ],
+    "image_filter_threshold": 0.2713811099529266,
+    "anatomical_filter_threshold": 0.05834793264372203,
+    "foreground_threshold": 0.5
+  },
+  "TA36": {
+    "models_dir": "models/ta36",
+    "patch_size": [
+      80,
+      192,
+      128
+    ],
+    "tile_step_size": 0.5,
+    "fold": 4,
+    "ensemble": "mean probabilities, three models, sequential execution",
+    "fp16_accumulator": true,
+    "fuse_logits": false,
+    "workers": 1
+  },
+  "detector": {
+    "plans": [
+      "models/detector_CT/plan.pkl",
+      "models/detector_MR/plan.pkl"
+    ],
+    "tta": 1,
+    "batch_size": 1,
+    "max_detections": 200,
+    "overlap": 0.5
+  },
+  "output": {
+    "directory": "/output/images/aneurysm-segmentation",
+    "format": ".mha",
+    "dtype": "uint8",
+    "labels": "0 background; 1..52 aneurysm location classes",
+    "geometry": "input native grid"
+  },
+  "limits": {
+    "seconds": 720,
+    "host_ram_GB": 31,
+    "target_gpu": "T4 16GB",
+    "T4_validated": false,
+    "container_validated": false
+  }
+}

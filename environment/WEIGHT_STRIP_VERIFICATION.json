@@ -1,0 +1,104 @@
+[
+  {
+    "file": "models/detector_CT/model_last.ckpt",
+    "removed_keys": [
+      "callbacks",
+      "optimizer_states",
+      "lr_schedulers",
+      "native_amp_scaling_state"
+    ],
+    "original_sha256": "00c4c98c96da785d2702c00700b25d0fe0751f57605281a8666842bf5e9a3d65",
+    "packaged_sha256": "49328f6677a441fac27397f52f615ca907a36dc535377b096c48a24bfd10ef61",
+    "tensor_count": 80,
+    "all_tensors_bitwise_equal": true
+  },
+  {
+    "file": "models/detector_MR/model_last.ckpt",
+    "removed_keys": [
+      "callbacks",
+      "optimizer_states",
+      "lr_schedulers",
+      "native_amp_scaling_state"
+    ],
+    "original_sha256": "f84488d9dfce235fc993c5dc9faca4fd35501b134b1a26a0248b4a309443980e",
+    "packaged_sha256": "372981d4f208030688373a1453f6934eec6edae69c5ab3dfb62f86b381b4cb95",
+    "tensor_count": 92,
+    "all_tensors_bitwise_equal": true
+  },
+  {
+    "file": "models/filter_CT.pt",
+    "removed_keys": [],
+    "original_sha256": "1661593b41a288c2066e27686a457326a5667c4c80c5ab01ccd11b11df62f3dd",
+    "packaged_sha256": "1661593b41a288c2066e27686a457326a5667c4c80c5ab01ccd11b11df62f3dd",
+    "tensor_count": 13,
+    "all_tensors_bitwise_equal": true
+  },
+  {
+    "file": "models/filter_MR.pt",
+    "removed_keys": [],
+    "original_sha256": "9fb96c6945f139cd6fe880f74061e4653528affd5c1f7e334a4cb83cd31f1f73",
+    "packaged_sha256": "9fb96c6945f139cd6fe880f74061e4653528affd5c1f7e334a4cb83cd31f1f73",
+    "tensor_count": 39,
+    "all_tensors_bitwise_equal": true
+  },
+  {
+    "file": "models/segmentation_CT.pt",
+    "removed_keys": [],
+    "original_sha256": "ca0f5473431e4e68d238b16ca66ce7b4f536d8f65b839238db431a108263772c",
+    "packaged_sha256": "ca0f5473431e4e68d238b16ca66ce7b4f536d8f65b839238db431a108263772c",
+    "tensor_count": 32,
+    "all_tensors_bitwise_equal": true
+  },
+  {
+    "file": "models/segmentation_MR.pt",
+    "removed_keys": [],
+    "original_sha256": "66e1b0f5f371141cf178ea47d31984b2de6b0c18f59b603b1951c43ae10a844d",
+    "packaged_sha256": "66e1b0f5f371141cf178ea47d31984b2de6b0c18f59b603b1951c43ae10a844d",
+    "tensor_count": 32,
+    "all_tensors_bitwise_equal": true
+  },
+  {
+    "file": "models/segmentation_MR_fallback.pt",
+    "removed_keys": [],
+    "original_sha256": "ec1d12c8028843d9ea2cc932f4025bf1247c87135bdb0266c1d5cfbfb20fa14d",
+    "packaged_sha256": "ec1d12c8028843d9ea2cc932f4025bf1247c87135bdb0266c1d5cfbfb20fa14d",
+    "tensor_count": 32,
+    "all_tensors_bitwise_equal": true
+  },
+  {
+    "file": "models/ta36/plain_conv_ceW_bg0.5_max2.5_diff_cluster_noMirror_bs2_ps80_192_128_allLR1e-2_clsBalSamp_degree0.75_noTopcowPretrain_ep1000_DS3/fold_4/checkpoint_final.pth",
+    "removed_keys": [
+      "grad_scaler_state",
+      "logging",
+      "_best_ema"
+    ],
+    "original_sha256": "da8578083d1ac4915cee91dfa7ea9ead52a573687ce60c7bd2597d4fafeb5424",
+    "packaged_sha256": "1707824aab82c8873036e6d731e4614d1e26b1c6912bcbb36bb013c16ef72a33",
+    "tensor_count": 292,
+    "all_tensors_bitwise_equal": true
+  },
+  {
+    "file": "models/ta36/primusV3S_ceW_bg0.5_max2.5_diff_cluster_noMirror_bs2_ps80_192_128_clsBalSamp_degree0.75_warm50_ep1000_DS/fold_4/checkpoint_final.pth",
+    "removed_keys": [
+      "grad_scaler_state",
+      "logging",
+      "_best_ema"
+    ],
+    "original_sha256": "c522efd5fbc0a8cc8180f241516485f64d0ddc4220dafd8c8738a96048822068",
+    "packaged_sha256": "6f1ef168020fa9c084082ebf96a32ad747cf7f6e1cc44ce223b241b043461e6e",
+    "tensor_count": 391,
+    "all_tensors_bitwise_equal": true
+  },
+  {
+    "file": "models/ta36/resEncM_ceW_bg0.75_max1.5_diff_cluster_noMirror_bs2_ps80_192_128_allLR1e-2_clsBalSamp_degree0.75_noTopcowPretrain_ep1000_DS3/fold_4/checkpoint_final.pth",
+    "removed_keys": [
+      "grad_scaler_state",
+      "logging",
+      "_best_ema"
+    ],
+    "original_sha256": "64371519d5d9374f60f132f27dd0f6b212bd2f70ac47f6c81ebd84031e78013d",
+    "packaged_sha256": "41c76b1cafa6325287b44a8999c889b61453eb96d1d16c3d35df230c5ecd2313",
+    "tensor_count": 956,
+    "all_tensors_bitwise_equal": true
+  }
+]

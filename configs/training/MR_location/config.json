@@ -1,0 +1,14 @@
+{
+  "classifier": {
+    "bootstrap": false,
+    "class_weight": null,
+    "max_depth": 16,
+    "max_features": 0.5,
+    "min_samples_leaf": 2,
+    "n_estimators": 512,
+    "n_jobs": 4,
+    "random_state": 20260905
+  },
+  "cpu_only": true,
+  "experiment": "E02"
+}

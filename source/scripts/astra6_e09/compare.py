@@ -1,0 +1,7 @@
+import json
+import numpy as np
+from scripts.analysis.current_official_evaluation import P,aggregate,write
+R=P/'artifacts/astra6_e09_CT_expanded_location_20260909';root=P/'artifacts/current_official_20260909';metrics=['PRECISION','RECALL','MCC','DICE','VOLSIM','HD95'];b=json.loads((root/'CT_E04/official.json').read_text());a=json.loads((root/'CT_E09/official.json').read_text());delta={k:a['overall'][k]-b['overall'][k] for k in metrics};br=json.loads((root/'CT_E04/per_case.json').read_text());ar=json.loads((root/'CT_E09/per_case.json').read_text());assert [r['case_id'] for r in br]==[r['case_id'] for r in ar];rng=np.random.default_rng(20260909);samples=[]
+for _ in range(2000):
+ ix=rng.integers(0,5,5);bb=aggregate([br[i]['raw'] for i in ix])['overall'];aa=aggregate([ar[i]['raw'] for i in ix])['overall'];samples.append([aa[k]-bb[k] for k in metrics])
+ci={k:np.percentile(np.array(samples)[:,i],[2.5,97.5]).tolist() for i,k in enumerate(metrics)};result={'before':b['overall'],'after':a['overall'],'delta':delta,'paired_bootstrap95CI':ci,'n_bootstrap':2000,'seed':20260909,'gate':all(delta[k]>=-1e-10 for k in metrics[:-1]) and delta['HD95']<=1e-10 and any(abs(x)>1e-8 for x in delta.values()),'n_cases':5,'limitations':'Small repeatedly observed CT5 development comparison; source includes other center2 CT, not center-held-out generalization; MR classifier unchanged.'};write(R/'evaluation/paired_official_comparison.json',result);print(json.dumps(result,indent=2),flush=True)

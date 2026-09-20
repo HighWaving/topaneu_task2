@@ -1,0 +1,7 @@
+{
+  "MR_fp_threshold": 0.31819945573806757,
+  "CT_fp_threshold": 0.2713811099529266,
+  "CT_anatomical_threshold": 0.05834793264372203,
+  "system_version": "MR_E32_image_candidate_48_CT_E16",
+  "MR_segmentation_architecture": "E32_image_candidate_48"
+}

@@ -1,0 +1,7 @@
+{
+  "epochs": 13,
+  "max_epochs": 80,
+  "minimum_stop_epoch": 20,
+  "patience": 12,
+  "selection": "maximum source development component crop Dice, threshold .5; fixed cleanup/fallback"
+}

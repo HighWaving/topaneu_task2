@@ -1,0 +1,12 @@
+{
+  "adoption": "CT5 all-six Pareto improvement, with tiny-sample limitation",
+  "budget_hours": 2,
+  "change": "only add CT source cases; same943 features, ExtraTrees512/depth16/leaf2/max_features.5/seed20260905, same augmentation; MR uses old model",
+  "checkpoint_every_trees": 64,
+  "experiment": "E09",
+  "hypothesis": "additional eligible official CT source labels improve location classification on CT",
+  "inference_vessels": "predictedTA36 only; never provided vessel masks at inference",
+  "no_CT5_or_MR40_fit": true,
+  "source_selection": "42 center2CT outside fixed5; all old218 source cases reused",
+  "source_vessels": "official provided TopBrain-organizer predicted silver masks, same source convention as E02"
+}

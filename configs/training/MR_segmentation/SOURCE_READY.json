@@ -1,0 +1,9 @@
+{
+  "images_sha256": "d2b0cac29c30a57058625b9139eb143ff2fe6f8adada475512d5cb78d9803be9",
+  "n_crops": 2684,
+  "n_rows": 5368,
+  "new_detector_crops": 191,
+  "records_sha256": "5fb91bd63d6f3e4c344f4650aa749ed31d263c48918e89c76cc2b9cc5da40833",
+  "source_detector_cases": 152,
+  "targets_sha256": "ca9342bada778c64810dbb27df8e3ff35d946117cee0085474eadc37897fd907"
+}

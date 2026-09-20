@@ -1,0 +1,21 @@
+{
+  "CT5_or_MR40_used_for_fit": false,
+  "MR_deployment_unchanged": true,
+  "code_sha256": "0af93c8f43de21713553316add4bcd825376f21a23579d4889316b024d117a80",
+  "config_sha256": "5ef9a6a66aeedb0ef2ae2945c6c597a1cdeec68dd136517d9933353074e1b628",
+  "epochs": 13,
+  "model_sha256": "ca0f5473431e4e68d238b16ca66ce7b4f536d8f65b839238db431a108263772c",
+  "shared_training_code_sha256": "3c3fe6745af7e0a690edb596456391fdff62791fe4c3a31ae74bd559d27c2d9f",
+  "source": {
+    "CT_source_cases": 104,
+    "images_sha256": "5a88b304f02f1258d94fda5d45094e0e3fee5b6cb9c2481dbef14939c7f8ea54",
+    "n_crops": 2997,
+    "n_rows": 5994,
+    "old_crops_bit_identical": true,
+    "records_sha256": "84ad23f0cae8d82a17643e6afbf5d287daf6d15dc2ee8807a842e698e406e12a",
+    "source_positive_cases": 260,
+    "targets_sha256": "2d0c0e6770eb3fd780a2ba14f61ea14ef0cac79ecabd756c834fe63e412f7b7e"
+  },
+  "steps_per_epoch": 188,
+  "total_updates": 2444
+}

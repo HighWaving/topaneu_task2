@@ -1,0 +1,16 @@
+{
+  "passed": [
+    "reject_origin",
+    "reject_direction",
+    "reject_spacing",
+    "reject_size",
+    "reject_label",
+    "MR_socket_and_NIfTI_MHA_exact_geometry_mock_model",
+    "CT_socket_and_NIfTI_MHA_exact_geometry_mock_model",
+    "all_python_AST_parse",
+    "no_data_cache_git_binaries_or_symlinks"
+  ],
+  "GPU_model_inference_executed": false,
+  "container_built": false,
+  "T4_tested": false
+}

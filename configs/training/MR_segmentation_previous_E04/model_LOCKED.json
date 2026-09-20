@@ -1,0 +1,14 @@
+{
+  "center2_used_for_fit": false,
+  "code_sha256": "70bf187e922eb9d27dc40c44f9dbd898b9103976d51016e8a8cbf5baa5e0a547",
+  "config_sha256": "78341fb3aa00804ae6fa25babcee22adbd596667a7bf7eacf1f23cfaae17307f",
+  "epochs": 13,
+  "model_sha256": "7bb7bc71f923e18efb0d2fc722d19231ce1103d4f84fd0cefee24d5c1a46b38a",
+  "source": {
+    "images_sha256": "26d7635cc16c73d5ee0024ab61409f03f0d11972be626d86ec054b34c2d63df2",
+    "n_crops": 2493,
+    "n_rows": 4986,
+    "targets_sha256": "9feec5deee44ee4c09c8aa96f58020aa12b71db19beaa286fab65397f02a77a9"
+  },
+  "time": "2026-09-09T06:53:00.619394+00:00"
+}

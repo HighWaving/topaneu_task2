@@ -1,0 +1,12 @@
+{
+  "strict_model_loads_and_classifier_loads": [
+    "segmentation_MR.pt",
+    "segmentation_CT.pt",
+    "filter_CT.pt",
+    "location_MR.joblib",
+    "filter_CT_anatomical.joblib",
+    "location_CT.joblib"
+  ],
+  "inference_modules_imported": true,
+  "CUDA_used": false
+}

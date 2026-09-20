@@ -1,0 +1,12 @@
+{
+  "CT5_used": false,
+  "all_pool_AUROC": 0.9375741751720863,
+  "parent_deployed_negatives": 29,
+  "parent_deployed_positives": 33,
+  "parent_image_threshold": 0.2713811099529266,
+  "retained_negatives": 17,
+  "retained_positives": 33,
+  "selection": "minimum anatomical probability among positive original source deployment candidates retained by parent E11",
+  "source_only": true,
+  "threshold": 0.05834793264372203
+}

@@ -1,0 +1,12 @@
+{
+  "CT_deployment_unchanged": true,
+  "adoption": "MR40 official all-six Pareto gain versusE14 and retain53matched lesions; otherwise keepE04 MR segmenter",
+  "budget_hours": 3,
+  "development_split": "same E05 case groups used by E10 helper, which excludes these cases; source upstream detector is in-sample and this limitation persists",
+  "experiment": "E17",
+  "hypothesis": "GT-box-only training causes a source segmentation accuracy gap on actual detector boxes; adding actual MR detector-positive crops can reduce it",
+  "no_MR40_or_CT5_fit": true,
+  "precondition": "source helper meanDice on original detector positives must be at least.02 below original GT-box source meanDice before any new S training",
+  "proposed_training": "only if source gap passes: same architecture/optimizer/batch32 and fixed13dev+13finalepochs; no detector threshold change",
+  "source": "existing E04 GT-jitter bank plus MR source score.3/top5 original detector positives from E12 cache; no validation-error backfill"
+}

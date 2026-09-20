@@ -1,0 +1,19 @@
+{
+  "code_sha256": "d820b2946b455a7fe2fea74f41e9c704012cdc81f672ca2239de18b63755ada4",
+  "config_sha256": "88f6c2cb9649091b1cf3a829924acc6ad393c699a44204d4937e5ad7b3e263c4",
+  "epochs": 13,
+  "frozen_filter_assignments_sha256": "8a5ef6708e63b91f23a5f50e9fda880ed6ae842011dde8b0cb37e8a94c908fa1",
+  "model_sha256": "ec1d12c8028843d9ea2cc932f4025bf1247c87135bdb0266c1d5cfbfb20fa14d",
+  "no_MR40_or_CT5_fit": true,
+  "shared_training_sha256": "3c3fe6745af7e0a690edb596456391fdff62791fe4c3a31ae74bd559d27c2d9f",
+  "source": {
+    "images_sha256": "d2b0cac29c30a57058625b9139eb143ff2fe6f8adada475512d5cb78d9803be9",
+    "n_crops": 2684,
+    "n_rows": 5368,
+    "new_detector_crops": 191,
+    "records_sha256": "5fb91bd63d6f3e4c344f4650aa749ed31d263c48918e89c76cc2b9cc5da40833",
+    "source_detector_cases": 152,
+    "targets_sha256": "ca9342bada778c64810dbb27df8e3ff35d946117cee0085474eadc37897fd907"
+  },
+  "total_updates": 2184
+}

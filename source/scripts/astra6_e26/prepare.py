@@ -1,0 +1,23 @@
+"""Controlled continuation of E17: identical source bank, native selection."""
+from pathlib import Path
+import json,shutil
+import numpy as np
+from scripts.astra6_e01.e01_common import P,DATA,load_nifti,write_json,sha256_file
+from scripts.astra6_e04.run_e04 import component_records_fast
+RUN=P/'artifacts/astra6_e26_MR_segmentation_regularization_20260909';BASE=P/'artifacts/astra6_e17_MR_detector_crop_segmentation_20260909'
+def main():
+ for d in ['model','evaluation','native_validation','logs','predictions/mr_center2_k05']:(RUN/d).mkdir(parents=True,exist_ok=True)
+ config={'experiment':'E26','hypothesis':'E17 source train loss declines while held-out crop Dice plateaus across epochs4to13; test whether intensity/flip augmentation improves shape generalization, against an equal-budget unaugmented continuation.','two_controlled_arms':['control','augmented'],'initialization':'Both development arms start from identical E17 development epoch13 optimizer/model/RNG. Full fits start from corresponding E17 full-source epoch13. Original files unchanged.','fixed_data':'E17 originalGT plus actualsourceD crop bank; no extra validation cases or errors backfilled','architecture_loss_optimizer':'unchanged E17 two-channel32cube Segmenter, BCE+Dice, AdamW.001','augmentation_after_epoch13':{'image_gamma':[.8,1.25],'Gaussian_noise_std':.01,'independent_consistent_xyz_flips':.5,'prior_and_target':'spatial flips applied consistently; intensity changes onlyimage'},'budget':{'maximum_epoch':100,'minimum_stop_epoch':30,'patience':20,'validation_interval_epochs':1,'minimum_selectable_epoch':13,'full_source_epochs':'each arm source-selected epoch; both full fits completed','expected_max_hours':4,'checkpoint':'each epoch fulloptimizer and TorchCUDA/CPU/loader RNG; inherited state preserved'},'selection':'Native-production-decoder meanDice on identical31source-heldout detector crops. Prefer augmented only if it exceeds control by.005; otherwise control. Selected arm must exceed E17 development13 nativeDice by.005 before MR40.','comparison':'Only the source-selected fully trained arm gets MR40 official6metrics with E02C/E14F frozen. No additional MR40 variant selection.','source_limitation':'E17 source detector boxes were in-sample; this is a controlled S-only comparison. E23 OOF F/C work continues separately.','GPU_sharing':'TinyS historically <.7GiB allocated; use allocatedGPU3 only after free-memory check, retain reserve for E23. No other task interrupted.','no_MR40_CT5_fit':True};write_json(RUN/'config.json',config)
+ if not (RUN/'features').exists():(RUN/'features').symlink_to(BASE/'features',target_is_directory=True)
+ shutil.copy2(BASE/'source_split.json',RUN/'source_split.json')
+ if (RUN/'native_validation/READY.json').exists():return
+ records=[json.loads(s) for s in (BASE/'features/train_records.jsonl').read_text().splitlines()];split=json.loads((BASE/'source_split.json').read_text());groups={}
+ for j,row in enumerate(split['development_detector_rows']):groups.setdefault(records[row]['case_id'],[]).append((j,row,records[row]))
+ assert len(split['development_detector_rows'])==31 and not any('center2' in c for c in groups)
+ for cid,items in sorted(groups.items()):
+  gt,aff,shape=load_nifti(DATA/f'location_masks/{cid}.nii.gz');comps=component_records_fast(gt)
+  for j,row,r in items:
+   original=records[r['matched_GT_base_row']];comp=next(c for c in comps if c['class_id']==r['source_class_id'] and np.array_equal(c['coords'].min(0)-.5,original['low']) and np.array_equal(c['coords'].max(0)+.5,original['high']));low,high=np.array(r['low']),np.array(r['high']);lo=np.maximum(np.floor(low).astype(int),0);hi=np.minimum(np.ceil(high).astype(int),shape);native=np.stack(np.meshgrid(*[np.arange(a,b) for a,b in zip(lo,hi)],indexing='ij'));coords=(native-((low+high)/2)[:,None,None,None])/(2*np.maximum(high-low,1))[:,None,None,None]*32+15.5;points=comp['coords'];inside=points[np.all((points>=lo)&(points<hi),axis=1)];truth=np.zeros(tuple(hi-lo),bool);truth[tuple((inside-lo).T)]=True;center=(low+high)/2;radius=np.maximum((high-low)/2,.5);ellipse=np.sum(((native-center[:,None,None,None])/radius[:,None,None,None])**2,axis=0)<=1;np.savez_compressed(RUN/f'native_validation/{j:02d}.npz',coords=coords,truth=truth,ellipse=ellipse,GT_voxels=len(points),row=row)
+  print('E26_NATIVE_SOURCE_TARGET',cid,flush=True)
+ files=sorted((RUN/'native_validation').glob('*.npz'));assert len(files)==31;write_json(RUN/'native_validation/READY.json',{'n':31,'source_only':True,'source_split_sha256':sha256_file(BASE/'source_split.json'),'files_sha256':{f.name:sha256_file(f) for f in files}})
+if __name__=='__main__':main()

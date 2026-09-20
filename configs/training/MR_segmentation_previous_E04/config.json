@@ -1,0 +1,64 @@
+{
+  "experiment": "E04",
+  "hypothesis": "dense source voxel supervision improves conditional aneurysm shape after assignment classifier gains plateau",
+  "baseline": "artifacts/astra6_e02_multiscale_vessel_signature_20260908T173916Z",
+  "crop": "32^3 native-axis grid spanning twice each box extent; each-image .5/99.5 percentile normalization",
+  "inputs": [
+    "image",
+    "binary ellipsoid prior"
+  ],
+  "target": "source component binary mask, nearest resampling, constrained to original box",
+  "model": "3D UNet widths8,16,32, GroupNorm SiLU, trilinear upsampling",
+  "loss": "0.5 BCE + 0.5 soft Dice, equal source rows",
+  "training": {
+    "batch": 32,
+    "optimizer": "AdamW",
+    "lr": 0.001,
+    "weight_decay": 0.0001,
+    "max_epochs": 80,
+    "min_stop_epoch": 20,
+    "patience": 12,
+    "selection": "max source development original component binary crop Dice",
+    "final_epochs": "source-selected duration",
+    "seed": 20260909
+  },
+  "source_split": "same174 train /44 development positive cases as E03; final all218 cases277components4986rows; binary shape flip native first axis on mirror rows",
+  "postprocessing": "threshold .5; largest26-connected component; if empty use original ellipsoid; output constrained to original candidate box",
+  "frozen": [
+    "E02 class assignment",
+    "candidate scores/selection",
+    "threshold .3",
+    "k5",
+    "predicted TA36",
+    "MR40",
+    "paint order",
+    "official scorer"
+  ],
+  "gate": {
+    "Dice_gain": 0.008,
+    "P_R_MCC_VS": "nondecrease",
+    "HD95": "nonincrease",
+    "TP_min": 35,
+    "FP_max": 33,
+    "assignment_fixed": 36,
+    "coverage_min": 11
+  },
+  "budget": {
+    "hours": 8,
+    "GB": 5
+  },
+  "gpu": "GPU2 UUID only for train/infer; CPU prepare/evaluate",
+  "scorer_hashes": {
+    "/home/jovyan/rtx4claude-datavol-1/topaneu2026_task2/scripts/local_scoring_arena.py": "782d7743d3c363abd06059c2b200d58d8f274c45c9eb980f56807ad17b7a1edb",
+    "/home/jovyan/rtx4claude-datavol-1/topaneu2026_task1/TopAneu-26/eval/task2/evaluate.py": "5e24667a47f2141344c07666c7d0492bd8e92122a276512f801f1154ba00e09e"
+  },
+  "code_hashes": {
+    "scripts/astra6_e04/run_e04.py": "933f0c4153a24ff37f126670b2b1405fc51ae6f146ce5b3c5981de1d10b00b38",
+    "scripts/astra6_e04/evaluate.py": "0d81adb680ae324b3030cc776d14aad8b07ac1d19db977c23426c664c12a1736"
+  },
+  "limitations": [
+    "GT-box+jitter to detector-box domain gap",
+    "cropped source dev Dice is not native official Dice",
+    "center2 is repeatedly used research holdout, all positive; no patient-linkage metadata"
+  ]
+}

@@ -1,0 +1,10 @@
+{
+  "CT5_used": false,
+  "selected_epoch": 11,
+  "selection": "minimum source-dev original positive probability in actual score.3/top5 deployment pool, nextafter toward zero",
+  "source_deployed_negative_count": 72,
+  "source_deployed_positive_count": 33,
+  "source_negative_rejection": 0.5972222222222222,
+  "source_recall": 1.0,
+  "threshold": 0.2713811099529266
+}

@@ -1,0 +1,8 @@
+{
+  "MR_fp_threshold": 0.35423111915588373,
+  "model_path_overrides": {
+    "MR_fp_filter": "alternatives/MR_E12/filter.pt",
+    "MR_segmentation": "alternatives/MR_E12/segmentation.pt"
+  },
+  "not_default_reason": "Original E12 combination preserved with E04 segmentation:52/58 matched versus default53/58. Its reported metrics apply only to this unchanged combination."
+}

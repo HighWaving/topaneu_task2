@@ -1,0 +1,12 @@
+[
+  {
+    "path": "models/detector_CT/model_last.ckpt",
+    "torch": "1.11.0+cu113",
+    "loaded": true
+  },
+  {
+    "path": "models/detector_MR/model_last.ckpt",
+    "torch": "1.11.0+cu113",
+    "loaded": true
+  }
+]

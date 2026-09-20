@@ -1,0 +1,27 @@
+{
+  "adoption": "CT5 all-six Pareto improvement and no matched-lesion loss versus E09; preserve unfiltered E09 otherwise",
+  "candidate_pool": {
+    "min_score": 0.05,
+    "topk": 20
+  },
+  "case_split": "CT longitudinal suffix groups held together; fixedCT5 entirely excluded; not LOCO",
+  "change": "same two-scale E06 architecture, CT-only104 cases instead of mixed261; source deployment-pool calibration",
+  "control": "best CT E09 classifier + E04 segmenter, no filter",
+  "experiment": "E11",
+  "hypothesis": "CT-specific FP model with104 eligible CT source cases can reject CT artifacts without the true-lesion loss of the MR/CT E06 model",
+  "no_CT5_or_MR40_fit": true,
+  "no_vessel_input": true,
+  "source_detector_in_sample": true,
+  "threshold": "minimum source-dev positive probability among original detector score>=.3 top5, nextafter toward zero; no CT5 calibration",
+  "training": {
+    "AdamW_lr": 0.0003,
+    "batch": 32,
+    "budget_hours": 4,
+    "checkpoint": "everyepoch optimizer RNG sampler RNG",
+    "final_epochs": "source-selected duration",
+    "max_epochs": 100,
+    "min_stop_epoch": 30,
+    "patience": 20,
+    "weight_decay": 0.01
+  }
+}

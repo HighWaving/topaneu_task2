@@ -1,0 +1,15 @@
+"""CT-only segmenter: frozen E16 GT bank, comparable optimizer-update budget."""
+import json,math
+from scripts.astra6_e01.e01_common import P,DATA,write_json,sha256_file
+RUN=P/'artifacts/astra6_e22_CT_only_segmentation_20260909'
+BASE=P/'artifacts/astra6_e16_CT_expanded_segmentation_20260909'
+DVALID=P/'artifacts/astra6_e20_CT_detector_crop_segmentation_20260909'
+NVALID=P/'artifacts/astra6_e21_CT_native_checkpoint_selection_20260909/native_validation'
+def main():
+ for name in ['model','evaluation','predictions_ct']:(RUN/name).mkdir(parents=True,exist_ok=True)
+ records=[json.loads(s) for s in (BASE/'features/train_records.jsonl').read_text().splitlines()];parent=json.loads((BASE/'source_split.json').read_text());train=[i for i in parent['train_rows'] if '_ct_' in records[i]['case_id']];full=[i for i,r in enumerate(records) if '_ct_' in r['case_id']];budget=math.ceil(13*math.ceil(len(parent['train_rows'])/32)/math.ceil(len(train)/32));assert budget==33 and len(train)==1908 and len(full)==2448;assert not {records[i]['case_id'] for i in full}&set(parent['fixed_CT5']);assert not {records[i]['case_id'] for i in train}&set(parent['development_cases'])
+ config={'experiment':'E22','hypothesis':'CT-only segmentation may reduce negative transfer from MR image appearances; CT image FP filters previously benefited from modality-specific fitting, and CT shared segmenter adaptation did not improve official shape','change':'Only training modality; use unchanged E16 GT crop bank and original32cube architecture, support, loss, optimizer and thresholds. Do not include the unsuccessful E20 added detector crops for fitting.','development_epochs':budget,'shared_E16_development_updates':13*math.ceil(len(parent['train_rows'])/32),'CT_development_updates':budget*math.ceil(len(train)/32),'final_epochs':'Earliest source-native maximum within completed33development epochs; full selected-duration CT-only training from scratch','checkpoint':'Per-epoch weights/optimizer/RNG plus native validation history and best checkpoint','source_gate':'Native Dice on same28source CT lesions >= E16 0.8208194051141334 + 0.005','official_gate':'All-six Pareto vs CT_E16 and>=4matched/>=3correct locations; MR unchanged','budget_hours':1,'no_CT5_or_MR40_fit':True};write_json(RUN/'config.json',config)
+ if not (RUN/'features').exists():(RUN/'features').symlink_to(BASE/'features',target_is_directory=True)
+ if not (RUN/'native_validation').exists():(RUN/'native_validation').symlink_to(NVALID,target_is_directory=True)
+ ds=json.loads((DVALID/'source_split.json').read_text());write_json(RUN/'source_split.json',{**parent,'train_rows':train,'final_rows':full,'source_native_validation_rows_in_E20':ds['development_detector_rows'],'training_cases':sorted({records[i]['case_id'] for i in train}),'final_cases':sorted({records[i]['case_id'] for i in full}),'E16_source_split_sha256':sha256_file(BASE/'source_split.json')});print('E22_SOURCE_READY',len(train),len(full),budget,flush=True)
+if __name__=='__main__':main()

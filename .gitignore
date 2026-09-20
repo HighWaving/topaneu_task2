@@ -1,0 +1,10 @@
+__pycache__/
+*.pyc
+*.npz
+*.nii.gz
+*.mha
+*.zip
+*.tar.gz
+build/
+test/input/
+test/output/

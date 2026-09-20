@@ -1,0 +1,2 @@
+# Python 3.11 refinement/adapter environment only. Detector needs its separate Python 3.9 environment.
+-r environment/requirements-refinement.txt

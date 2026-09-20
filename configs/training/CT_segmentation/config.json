@@ -1,0 +1,12 @@
+{
+  "adoption": "CT5 all-six Pareto gain versus CT_E13, no matched-lesion loss; frozenD,C,F and selection",
+  "budget_hours": 3,
+  "change": "only expand positive segmentation source218to260cases; newCT source62to104; MR deployment remains frozenE04",
+  "checkpoint": "everyepoch model optimizer loader CPU/CUDA RNG",
+  "experiment": "E16",
+  "hypothesis": "Adding42 eligible CT source cases improves CT tumor shape quality while keeping the existing E04 architecture and training recipe",
+  "inputs": "raw image32cube plus box prior, same two channels as E04; TA36 anatomy handled by frozen downstream classifiers/filters",
+  "no_CT5_or_MR40_fit": true,
+  "source_validation": "E05 group-disjoint old development cases plus E09 eight newCT source-development cases; baseline helperE10 excludes old source-dev and never saw newCT",
+  "training": "sameE04 optimizer/BCE+Dice/batch32; fixed13epochs for source helper and final, matching establishedE04 selected duration; no new duration sweep"
+}

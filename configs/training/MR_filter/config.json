@@ -1,0 +1,17 @@
+{
+  "adoption": "official all-six Pareto gain versus E06 and at least53/58 matched lesions; otherwise preserve E06",
+  "aggregation": "arithmetic mean of three probabilities; one predeclared ensemble, no subset or seed sweep",
+  "budget_hours": 3,
+  "checkpoint": "each epoch optimizer and all RNG state",
+  "experiment": "E14",
+  "hypothesis": "Three fixed-seed MR image filters reduce single-run variance observed in E12, without changing data, architecture, epoch budget or proposal selection",
+  "member0": "reuse fully trained E12 selected25epochs",
+  "new_members": "two seeds, each source-development25epochs and full267case25epochs",
+  "seeds": [
+    20260909,
+    20260910,
+    20260911
+  ],
+  "source": "same267MR source cases and case-group split as E12; MR40/CT5 excluded",
+  "threshold": "minimum mean probability among source-dev original score.3/top5 positive candidates"
+}

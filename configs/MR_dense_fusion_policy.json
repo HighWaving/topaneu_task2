@@ -1,0 +1,166 @@
+{
+  "UTC": "2026-09-12T16:50:19.208680+00:00",
+  "identity": {
+    "source_prediction_manifest_sha256": "234682c297df1de7c8826e2d69438f23b57a840332e6c2c24d300748ec92fbdc",
+    "evaluation_code_sha256": "1492509287b23075e7cb52ae65793972ee447369d51c37c667de0c39e584bc13",
+    "native_matching_code_sha256": "d1fe5cba7cf45fc96462dea842288e522def2d3388ac49a7125f5d011f060760"
+  },
+  "source45_only": true,
+  "comparison_images_or_GT_not_used": true,
+  "budget_FP_per_case": 0.325,
+  "selection": "maximum matched under budget, then lower FP, then higher threshold; all GT sizes",
+  "control_D_threshold": 0.955078125,
+  "control_operating_point": {
+    "threshold": 0.955078125,
+    "matched": 24,
+    "GT": 29,
+    "sensitivity": 0.8275862068965517,
+    "FP": 7,
+    "cases": 45,
+    "FP_per_case": 0.15555555555555556,
+    "matched_binary_Dice": 0.7966004795199906,
+    "size": {
+      "<2": {
+        "GT": 1,
+        "matched": 0
+      },
+      "2<=d<3": {
+        "GT": 1,
+        "matched": 0
+      },
+      "3<=d<5": {
+        "GT": 9,
+        "matched": 7
+      },
+      ">=5": {
+        "GT": 18,
+        "matched": 17
+      }
+    }
+  },
+  "arms": {
+    "refined_auxiliary": {
+      "threshold": 0.8900639414787292,
+      "matched": 26,
+      "GT": 29,
+      "sensitivity": 0.896551724137931,
+      "FP": 14,
+      "cases": 45,
+      "FP_per_case": 0.3111111111111111,
+      "matched_binary_Dice": 0.7264851144427351,
+      "size": {
+        "<2": {
+          "GT": 1,
+          "matched": 0
+        },
+        "2<=d<3": {
+          "GT": 1,
+          "matched": 0
+        },
+        "3<=d<5": {
+          "GT": 9,
+          "matched": 9
+        },
+        ">=5": {
+          "GT": 18,
+          "matched": 17
+        }
+      }
+    },
+    "fixed_control_plus_refined": {
+      "threshold": 0.9999694228172302,
+      "matched": 25,
+      "GT": 29,
+      "sensitivity": 0.8620689655172413,
+      "FP": 8,
+      "cases": 45,
+      "FP_per_case": 0.17777777777777778,
+      "matched_binary_Dice": 0.7818653265981886,
+      "size": {
+        "<2": {
+          "GT": 1,
+          "matched": 0
+        },
+        "2<=d<3": {
+          "GT": 1,
+          "matched": 0
+        },
+        "3<=d<5": {
+          "GT": 9,
+          "matched": 8
+        },
+        ">=5": {
+          "GT": 18,
+          "matched": 17
+        }
+      }
+    }
+  },
+  "fusion_policy": "Always include fixed-source S32/D control masks; union S32-refined independently searched dense queries, quality stays original dense maxp; learned-dense empty-local-mask fallback; no NMS/size filter.",
+  "source_fusion_new_found": 1,
+  "source_fusion_new_missed": 0,
+  "full_training_reused": "existing E23fold1 45000updates and completed S32 development fit; no new training",
+  "limits": [
+    "Repeated source development, not independent generalization.",
+    "Legacy preprocessing/planning lineage remains.",
+    "Only one <2mm source GT: cannot estimate small-lesion performance reliably."
+  ],
+  "unrefined_source_comparison": {
+    "dense_only": {
+      "threshold": 0.8900639414787292,
+      "matched": 26,
+      "GT": 29,
+      "sensitivity": 0.896551724137931,
+      "FP": 14,
+      "cases": 45,
+      "FP_per_case": 0.3111111111111111,
+      "matched_binary_Dice": 0.6744645158585834,
+      "size": {
+        "<2": {
+          "GT": 1,
+          "matched": 0
+        },
+        "2<=d<3": {
+          "GT": 1,
+          "matched": 0
+        },
+        "3<=d<5": {
+          "GT": 9,
+          "matched": 9
+        },
+        ">=5": {
+          "GT": 18,
+          "matched": 17
+        }
+      }
+    },
+    "fixed_control_plus_dense": {
+      "threshold": 0.9999694228172302,
+      "matched": 25,
+      "GT": 29,
+      "sensitivity": 0.8620689655172413,
+      "FP": 8,
+      "cases": 45,
+      "FP_per_case": 0.17777777777777778,
+      "matched_binary_Dice": 0.7681473906905422,
+      "size": {
+        "<2": {
+          "GT": 1,
+          "matched": 0
+        },
+        "2<=d<3": {
+          "GT": 1,
+          "matched": 0
+        },
+        "3<=d<5": {
+          "GT": 9,
+          "matched": 8
+        },
+        ">=5": {
+          "GT": 18,
+          "matched": 17
+        }
+      }
+    }
+  }
+}

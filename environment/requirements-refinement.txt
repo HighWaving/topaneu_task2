@@ -1,0 +1,28 @@
+# Recorded working environment; Docker installation has not been tested.
+--extra-index-url https://download.pytorch.org/whl/cu124
+numpy==2.4.4
+scipy==1.17.1
+scikit-learn==1.8.0
+scikit-image==0.26.0
+simpleitk==2.5.5
+nibabel==5.4.2
+pandas==3.0.3
+joblib==1.5.3
+batchgenerators==0.25.2
+batchgeneratorsv2==0.3.0
+acvl_utils==0.2.6
+dynamic_network_architectures==0.4.3
+einops==0.8.2
+timm==1.0.22
+monai==1.5.0
+connected-components-3d==3.28.0
+nnunetv2==2.6.2
+torch==2.5.1+cu124
+torchvision==0.20.1+cu124
+tqdm==4.67.3
+PyYAML==6.0.3
+yacs==0.1.8
+loguru==0.7.3
+matplotlib==3.10.9
+seaborn==0.13.2
+imagecodecs==2026.3.6
