@@ -16,7 +16,7 @@ def main():
  mdir=(a.model_dir or (a.bundle/'models' if (a.bundle/'models').exists() else a.bundle)).resolve()
  cfg=json.loads(a.calibration.read_text());q=cfg['arms']['fixed_control_plus_refined']['threshold'];d=cfg['control_D_threshold'];assert cfg['source45_only'];classifier=(a.classifier or mdir/'location_MR.joblib').resolve()
  raw=a.work/'case_0000.nii.gz';shutil.copyfile(a.image,raw)
- env=os.environ.copy();env.update(CUDA_VISIBLE_DEVICES=a.gpu,OMP_NUM_THREADS='2',OPENBLAS_NUM_THREADS='1',MKL_NUM_THREADS='1',PYTHONUNBUFFERED='1',PYTHONDONTWRITEBYTECODE='1')
+ env=os.environ.copy();env.update(CUDA_VISIBLE_DEVICES=a.gpu,OMP_NUM_THREADS='2',OPENBLAS_NUM_THREADS='1',MKL_NUM_THREADS='1',PYTHONUNBUFFERED='1',PYTHONDONTWRITEBYTECODE='1',GIT_PYTHON_REFRESH='quiet')
  detcode=a.bundle/'source/dependencies/detector_app';denv=env.copy();denv['PYTHONPATH']=os.pathsep.join([str(P),str(detcode.parent),str(detcode)]);denv['det_data']=str(V/'nndet_data');denv['det_models']=str(V/'nndet_models');checkpoint=mdir/'detector_MR'
  def stage(name,cmd,cwd,environment):
   t=time.monotonic();run(cmd,cwd,environment,a.work/(name+'.log'));times[name]=time.monotonic()-t;(a.work/'runtime_partial.json').write_text(json.dumps(times,indent=2)+'\n')

@@ -30,10 +30,12 @@ from typing import Mapping, Sequence, Union, Callable, Any, Iterable
 from loguru import logger
 from contextlib import contextmanager
 from typing import Union, Optional
-from pathlib import Path
-from git import Repo, InvalidGitRepositoryError
-
-import functools
+try:
+    from git import Repo, InvalidGitRepositoryError
+except Exception:
+    Repo = None
+    class InvalidGitRepositoryError(Exception):
+        pass
 import inspect
 
 class SuppressPrint:
@@ -135,6 +137,8 @@ def get_repo_info(path: Union[str, Path]):
     Returns:
         dict: contains the current hash, gitdir and active branch
     """
+    if Repo is None:
+        return {}
     def find_repo(findpath):
         p = Path(findpath).absolute()
         for p in [p, *p.parents]:
@@ -146,10 +150,13 @@ def get_repo_info(path: Union[str, Path]):
         else:
             raise InvalidGitRepositoryError
         return repo
-    repo = find_repo(path)
-    return {"hash": repo.head.commit.hexsha,
-            "gitdir": repo.git_dir,
-            "active_branch": repo.active_branch.name}
+    try:
+        repo = find_repo(path)
+        return {"hash": repo.head.commit.hexsha,
+                "gitdir": repo.git_dir,
+                "active_branch": repo.active_branch.name}
+    except Exception:
+        return {}
 
 
 def maybe_verbose_iterable(data: Iterable, **kwargs) -> Iterable:

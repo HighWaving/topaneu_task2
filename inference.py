@@ -4,10 +4,13 @@ from pathlib import Path
 import SimpleITK as sitk
 from postprocessing import aligned_output
 ROOT = Path(__file__).resolve().parent
+os.environ["GIT_PYTHON_REFRESH"] = "quiet"
 
 def predict_image(image, modality):
     detector = os.environ.get("TASK2_DETECTOR_PYTHON", "/opt/envs/detector/bin/python")
     refinement = os.environ.get("TASK2_REFINEMENT_PYTHON", sys.executable)
+    env = os.environ.copy()
+    env["GIT_PYTHON_REFRESH"] = "quiet"
     with tempfile.TemporaryDirectory(prefix="task2-case-") as td:
         td = Path(td)
         raw, pred = td/"input.nii.gz", td/"prediction.nii.gz"
@@ -15,7 +18,7 @@ def predict_image(image, modality):
         subprocess.run([refinement, str(ROOT/"run_inference.py"), "--image", str(raw),
                         "--modality", modality, "--output", str(pred), "--work", str(td/"work"),
                         "--gpu", os.environ.get("TASK2_GPU", "0"), "--detector-python", detector,
-                        "--refinement-python", refinement, "--mr-policy", "detector_control"], check=True)
+                        "--refinement-python", refinement, "--mr-policy", "detector_control"], env=env, check=True)
         return aligned_output(sitk.ReadImage(str(pred)), image)
 
 def infer_ct(img): return predict_image(img, "CT")

@@ -37,7 +37,7 @@ def main():
      sys.stderr.flush()
      raise RuntimeError(f"Missing Task 2 model weights in {model_dir}")
  common=['--image',str(a.image.resolve()),'--output',str(a.output.resolve()),'--work',str(a.work.resolve()),'--gpu',a.gpu]
- env=os.environ.copy();env['PYTHONDONTWRITEBYTECODE']='1'
+ env=os.environ.copy();env['PYTHONDONTWRITEBYTECODE']='1';env['GIT_PYTHON_REFRESH']='quiet'
  if a.modality=='MR':
   cmd=[a.refinement_python,'-m','scripts.delivery.raw_dense_fusion',*common,'--policy',a.mr_policy,'--bundle',str(ROOT),'--model-dir',str(model_dir),'--calibration',str(ROOT/'configs/MR_dense_fusion_policy.json'),'--detector-python',a.detector_python,'--refinement-python',a.refinement_python];raise SystemExit(subprocess.run(cmd,cwd=ROOT/'source',env=env).returncode)
  modelcfg=json.loads((ROOT/'configs/models.json').read_text());cfg={k:v for k,v in modelcfg.items() if k.endswith('_threshold') or k.endswith('_architecture')};cfg.update(detector_python=str(Path(a.detector_python).resolve()),refinement_python=str(Path(a.refinement_python).resolve()),CT_detector=str(model_dir/'detector_CT'),detector_code=str(ROOT/'source/dependencies/detector_app'),ta36_code=str(ROOT/'source/dependencies/ta36_app'),ta36_models=str(model_dir/'ta36'),CT_location_classifier=str(model_dir/'location_CT.joblib'),CT_fp_filter=str(model_dir/'filter_CT.pt'),CT_anatomical_filter=str(model_dir/'filter_CT_anatomical.joblib'))
