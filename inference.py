@@ -16,12 +16,16 @@ ROOT = Path(__file__).resolve().parent
 os.environ["GIT_PYTHON_REFRESH"] = "quiet"
 
 IMAGE_EXTENSIONS = (
-    ".nii.gz",
-    ".nii",
     ".mha",
     ".mhd",
-    ".tif",
     ".tiff",
+    ".tif",
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".nii.gz",
+    ".nii",
+    ".dcm",
 )
 
 
@@ -36,7 +40,7 @@ def find_image_files(location: Path) -> list[Path]:
 
     found = []
     # 1. Direct children
-    for item in location.iterdir():
+    for item in sorted(location.iterdir()):
         if item.is_file():
             name_lower = item.name.lower()
             if any(name_lower.endswith(ext) for ext in IMAGE_EXTENSIONS):
@@ -44,13 +48,47 @@ def find_image_files(location: Path) -> list[Path]:
 
     # 2. Recursive fallback
     if not found:
-        for item in location.rglob("*"):
+        for item in sorted(location.rglob("*")):
             if item.is_file():
                 name_lower = item.name.lower()
                 if any(name_lower.endswith(ext) for ext in IMAGE_EXTENSIONS):
                     found.append(item)
 
-    return sorted(found)
+    return found
+
+
+def load_image_volume(location: Path) -> sitk.Image:
+    input_files = find_image_files(location)
+    if not input_files and location.parent.exists() and location.parent != location:
+        input_files = find_image_files(location.parent)
+
+    if not input_files:
+        raise RuntimeError(f"Expected image file in {location}, found 0 files matching {IMAGE_EXTENSIONS}")
+
+    print(f"[*] Found {len(input_files)} candidate image file(s) in {location}.", flush=True)
+
+    if len(input_files) == 1:
+        img = sitk.ReadImage(str(input_files[0]))
+    else:
+        vol_files = [f for f in input_files if f.name.lower().endswith((".mha", ".nii.gz", ".nii"))]
+        if len(vol_files) == 1:
+            img = sitk.ReadImage(str(vol_files[0]))
+        else:
+            try:
+                reader = sitk.ImageSeriesReader()
+                sorted_files = sorted(input_files, key=lambda p: p.name)
+                reader.SetFileNames([str(p) for p in sorted_files])
+                img = reader.Execute()
+                print(f"[*] Successfully loaded {len(sorted_files)} slices as 3D volume via ImageSeriesReader.", flush=True)
+            except Exception as series_err:
+                print(f"[*] ImageSeriesReader failed ({series_err}), falling back to first file: {input_files[0]}", file=sys.stderr)
+                img = sitk.ReadImage(str(input_files[0]))
+
+    if img.GetDimension() == 2:
+        print("[*] Input image is 2D, expanding to 3D via JoinSeries.", flush=True)
+        img = sitk.JoinSeries([img])
+
+    return img
 
 
 def make_empty_mask(reference: sitk.Image) -> sitk.Image:
@@ -148,14 +186,8 @@ def resolve_input(input_dir: Path) -> tuple[sitk.Image, str]:
                 raise ValueError("Could not find input images or resolve modality")
 
     image_folder = input_dir / "images" / folder
-    files = find_image_files(image_folder)
-    if not files and image_folder.parent.exists():
-        files = find_image_files(image_folder.parent)
-    if not files:
-        raise ValueError(f"Expected at least one input volume in {image_folder}")
-
-    print(f"[*] Loading input volume from: {files[0]} (Modality: {modality})", flush=True)
-    reference = sitk.ReadImage(str(files[0]))
+    reference = load_image_volume(image_folder)
+    print(f"[*] Successfully loaded input volume: size={reference.GetSize()}, spacing={reference.GetSpacing()} (Modality: {modality})", flush=True)
     return reference, modality
 
 
