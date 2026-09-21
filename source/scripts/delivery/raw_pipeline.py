@@ -8,7 +8,14 @@ from nibabel.processing import resample_from_to
 P=Path(__file__).resolve().parents[2];V=P.parent
 
 def run(argv,cwd,env,log):
- with log.open('w') as f:subprocess.run([str(x) for x in argv],cwd=cwd,env=env,stdout=f,stderr=subprocess.STDOUT,check=True)
+ try:
+  with log.open('w') as f:subprocess.run([str(x) for x in argv],cwd=cwd,env=env,stdout=f,stderr=subprocess.STDOUT,check=True)
+ except subprocess.CalledProcessError as e:
+  if log.exists():
+   sys.stderr.write(f"\n=== SUBPROCESS FAILED: {' '.join(str(x) for x in argv)} ===\n")
+   sys.stderr.write(f"Log ({log}):\n{log.read_text()}\n=== END SUBPROCESS LOG ===\n")
+   sys.stderr.flush()
+  raise
 
 def main():
  p=argparse.ArgumentParser();p.add_argument('--fp-filter',type=Path);p.add_argument('--fp-threshold',type=float);p.add_argument('--cache-ta36-preprocessing',action=argparse.BooleanOptionalAction,default=True);p.add_argument('--runtime-config',type=Path);p.add_argument('--modality',choices=['MR','CT'],default='MR');p.add_argument('--image',type=Path,required=True);p.add_argument('--work',type=Path,required=True);p.add_argument('--output',type=Path,required=True);p.add_argument('--segmentation',type=Path);p.add_argument('--gpu',default='GPU-f7491bbb-3972-1264-755a-63dec96b4a7d');a=p.parse_args();a.work=a.work.resolve();a.output=a.output.resolve();a.work.mkdir(parents=True,exist_ok=False);start=time.monotonic();times={};cfg=json.loads(a.runtime_config.read_text()) if a.runtime_config else {}
