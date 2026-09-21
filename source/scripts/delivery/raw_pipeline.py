@@ -35,7 +35,7 @@ def main():
  ti=a.work/'ta36_input';to=a.work/'ta36_output';ti.mkdir();to.mkdir();reorient_nii(nib.load(raw),targ_aff='LPS').to_filename(ti/'case_0000.nii.gz')
  tenv=env.copy();tenv['PYTHONPATH']=os.pathsep.join([str(P/'vendor/delivery_runtime_deps'),str(app/'vendor')]);tenv['TOPANEU_MODEL_ROOT']=str(cfg.get('ta36_models',V/'topaneu-task1-algorithm-model/ta36_models'));t=time.monotonic()
  ta36_command=[seg,P/'scripts/delivery/ta36_cached_preprocessing.py',app/'ta36/run_inference.py'] if a.cache_ta36_preprocessing else [seg,app/'ta36/run_inference.py']
- run(ta36_command+['--input',ti,'--output',to,'--suffix','_0000.nii.gz','--sequential','--n_infer_workers','1','--n_pre_post_workers','1'],app,tenv,a.work/'ta36.log')
+ run(ta36_command+['--input',ti,'--output',to,'--suffix','_0000.nii.gz','--sequential','--n_infer_workers','1','--n_pre_post_workers','1','--modality',a.modality.lower()],app,tenv,a.work/'ta36.log')
  original=nib.load(raw);vessel=resample_from_to(nib.load(to/'case.nii.gz'),original,order=0);vpath=a.work/'predicted_vessel.nii.gz';nib.Nifti1Image(np.asarray(vessel.dataobj,dtype=np.uint8),original.affine).to_filename(vpath);times['ta36_including_reorientation']=time.monotonic()-t
  if not np.any(np.asarray(vessel.dataobj)>0):
   ref=sitk.ReadImage(str(raw));out=sitk.Image(ref.GetSize(),sitk.sitkUInt8);out.CopyInformation(ref);a.output.parent.mkdir(parents=True,exist_ok=True);sitk.WriteImage(out,str(a.output),True)

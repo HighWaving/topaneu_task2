@@ -30,7 +30,7 @@ def main():
  app=a.bundle/'source/dependencies/ta36_app';sys.path.insert(0,str(app/'ta36'));from reorient_nii import reorient_nii
  ti=a.work/'ta36_input';to=a.work/'ta36_output';ti.mkdir();to.mkdir();reorient_nii(nib.load(raw),targ_aff='LPS').to_filename(ti/'case_0000.nii.gz')
  tenv=env.copy();tenv['PYTHONPATH']=os.pathsep.join([str(P/'vendor/delivery_runtime_deps'),str(app/'vendor')]);tenv['TOPANEU_MODEL_ROOT']=str(mdir/'ta36')
- stage('ta36',[a.refinement_python,P/'scripts/delivery/ta36_cached_preprocessing.py',app/'ta36/run_inference.py','--input',ti,'--output',to,'--suffix','_0000.nii.gz','--sequential','--n_infer_workers','1','--n_pre_post_workers','1'],app,tenv)
+ stage('ta36',[a.refinement_python,P/'scripts/delivery/ta36_cached_preprocessing.py',app/'ta36/run_inference.py','--input',ti,'--output',to,'--suffix','_0000.nii.gz','--sequential','--n_infer_workers','1','--n_pre_post_workers','1','--modality','mr'],app,tenv)
  original=nib.load(raw);vessel=resample_from_to(nib.load(to/'case.nii.gz'),original,order=0);vpath=a.work/'predicted_vessel.nii.gz';nib.Nifti1Image(np.asarray(vessel.dataobj,dtype=np.uint8),original.affine,original.header.copy()).to_filename(vpath)
  if not np.any(np.asarray(vessel.dataobj)>0):
   import SimpleITK as sitk

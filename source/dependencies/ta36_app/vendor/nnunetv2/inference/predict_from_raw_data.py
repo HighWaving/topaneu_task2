@@ -1,5 +1,6 @@
 import inspect
 import itertools
+import math
 import multiprocessing
 import os
 from copy import deepcopy
@@ -8,6 +9,7 @@ from typing import Tuple, Union, List, Optional
 
 import numpy as np
 import torch
+import torch.nn.functional as F
 from acvl_utils.cropping_and_padding.padding import pad_nd_image
 from batchgenerators.dataloading.multi_threaded_augmenter import MultiThreadedAugmenter
 from batchgenerators.utilities.file_and_folder_operations import load_json, join, isfile, maybe_mkdir_p, isdir, subdirs, \
@@ -635,17 +637,68 @@ class nnUNetPredictor(object):
             # preallocate arrays
             if self.verbose:
                 print(f'preallocating results arrays on device {results_device}')
-            predicted_logits = torch.zeros((self.label_manager.num_segmentation_heads, *data.shape[1:]),
-                                           dtype=torch.half,
-                                           device=results_device)
-            n_predictions = torch.zeros(data.shape[1:], dtype=torch.half, device=results_device)
+            tmp_logits_path = None
+            tmp_npred_path = None
+            num_logits_elems = self.label_manager.num_segmentation_heads * int(np.prod(data.shape[1:]))
+            num_npred_elems = int(np.prod(data.shape[1:]))
+            req_bytes = (num_logits_elems + num_npred_elems) * 2
+
+            if results_device.type == 'cpu' and req_bytes > 3.5 * (1024**3):
+                import tempfile
+                tmp_logits_file = tempfile.NamedTemporaryFile(dir='/tmp', prefix='nnunet_logits_', delete=False)
+                tmp_logits_path = tmp_logits_file.name
+                tmp_logits_file.close()
+                with open(tmp_logits_path, 'wb') as f:
+                    f.seek(num_logits_elems * 2 - 1)
+                    f.write(b'\0')
+                predicted_logits = torch.from_file(tmp_logits_path, shared=True, size=num_logits_elems, dtype=torch.half).view((self.label_manager.num_segmentation_heads, *data.shape[1:]))
+                predicted_logits.zero_()
+
+                tmp_npred_file = tempfile.NamedTemporaryFile(dir='/tmp', prefix='nnunet_npred_', delete=False)
+                tmp_npred_path = tmp_npred_file.name
+                tmp_npred_file.close()
+                with open(tmp_npred_path, 'wb') as f:
+                    f.seek(num_npred_elems * 2 - 1)
+                    f.write(b'\0')
+                n_predictions = torch.from_file(tmp_npred_path, shared=True, size=num_npred_elems, dtype=torch.half).view(data.shape[1:])
+                n_predictions.zero_()
+            else:
+                try:
+                    predicted_logits = torch.zeros((self.label_manager.num_segmentation_heads, *data.shape[1:]),
+                                                   dtype=torch.half,
+                                                   device=results_device)
+                    n_predictions = torch.zeros(data.shape[1:], dtype=torch.half, device=results_device)
+                except (RuntimeError, MemoryError):
+                    if results_device.type == 'cpu':
+                        import tempfile
+                        tmp_logits_file = tempfile.NamedTemporaryFile(dir='/tmp', prefix='nnunet_logits_', delete=False)
+                        tmp_logits_path = tmp_logits_file.name
+                        tmp_logits_file.close()
+                        with open(tmp_logits_path, 'wb') as f:
+                            f.seek(num_logits_elems * 2 - 1)
+                            f.write(b'\0')
+                        predicted_logits = torch.from_file(tmp_logits_path, shared=True, size=num_logits_elems, dtype=torch.half).view((self.label_manager.num_segmentation_heads, *data.shape[1:]))
+                        predicted_logits.zero_()
+
+                        tmp_npred_file = tempfile.NamedTemporaryFile(dir='/tmp', prefix='nnunet_npred_', delete=False)
+                        tmp_npred_path = tmp_npred_file.name
+                        tmp_npred_file.close()
+                        with open(tmp_npred_path, 'wb') as f:
+                            f.seek(num_npred_elems * 2 - 1)
+                            f.write(b'\0')
+                        n_predictions = torch.from_file(tmp_npred_path, shared=True, size=num_npred_elems, dtype=torch.half).view(data.shape[1:])
+                        n_predictions.zero_()
+                    else:
+                        raise
 
             if self.use_gaussian:
-                gaussian = compute_gaussian(tuple(self.configuration_manager.patch_size), sigma_scale=1. / 8,
-                                            value_scaling_factor=10,
-                                            device=results_device)
+                gaussian_gpu = compute_gaussian(tuple(self.configuration_manager.patch_size), sigma_scale=1. / 8,
+                                                value_scaling_factor=10,
+                                                device=self.device)
+                gaussian_res = gaussian_gpu.to(results_device) if results_device != self.device else gaussian_gpu
             else:
-                gaussian = 1
+                gaussian_gpu = 1
+                gaussian_res = 1
 
             if not self.allow_tqdm and self.verbose:
                 print(f'running prediction: {len(slicers)} steps')
@@ -653,14 +706,25 @@ class nnUNetPredictor(object):
                 workon = data[sl][None]
                 workon = workon.to(self.device)
 
-                prediction = self._internal_maybe_mirror_and_predict(workon)[0].to(results_device)
+                prediction = self._internal_maybe_mirror_and_predict(workon)[0]
 
                 if self.use_gaussian:
-                    prediction *= gaussian
-                predicted_logits[sl] += prediction
-                n_predictions[sl[1:]] += gaussian
+                    prediction = prediction * gaussian_gpu
+                predicted_logits[sl] += prediction.to(results_device)
+                n_predictions[sl[1:]] += gaussian_res
 
-            predicted_logits /= n_predictions
+            if results_device.type == 'cpu':
+                for c in range(predicted_logits.shape[0]):
+                    predicted_logits[c] /= n_predictions
+            else:
+                predicted_logits /= n_predictions
+            del n_predictions
+            if tmp_npred_path and os.path.exists(tmp_npred_path):
+                try:
+                    os.remove(tmp_npred_path)
+                except Exception:
+                    pass
+
             # check for infs
             if torch.any(torch.isinf(predicted_logits)):
                 raise RuntimeError('Encountered inf in predicted array. Aborting... If this problem persists, '
@@ -668,6 +732,16 @@ class nnUNetPredictor(object):
                                    'predicted_logits to fp32')
         except Exception as e:
             del predicted_logits, n_predictions, prediction, gaussian, workon
+            if tmp_logits_path and os.path.exists(tmp_logits_path):
+                try:
+                    os.remove(tmp_logits_path)
+                except Exception:
+                    pass
+            if tmp_npred_path and os.path.exists(tmp_npred_path):
+                try:
+                    os.remove(tmp_npred_path)
+                except Exception:
+                    pass
             empty_cache(self.device)
             empty_cache(results_device)
             raise e
@@ -721,6 +795,183 @@ class nnUNetPredictor(object):
             # revert padding
             predicted_logits = predicted_logits[(slice(None), *slicer_revert_padding[1:])]
         return predicted_logits
+
+    @torch.inference_mode()
+    def predict_sliding_window_streamed_seg(self, input_image: torch.Tensor, props: dict) -> np.ndarray:
+        """Streamed sliding window inference + on-the-fly slab resampling + argmax.
+        Materializes NO full-volume logits, using ~1.5 GB RAM and 0 disk space!
+        """
+        assert isinstance(input_image, torch.Tensor)
+        self.network = self.network.to(self.device)
+        self.network.eval()
+        empty_cache(self.device)
+
+        with torch.autocast(self.device.type, enabled=True) if self.device.type == 'cuda' else dummy_context():
+            data_padded, slicer_revert_padding = pad_nd_image(input_image, self.configuration_manager.patch_size,
+                                                               'constant', {'value': 0}, True, None)
+
+            d_padded, h_padded, w_padded = data_padded.shape[1:]
+            new_shape = [int(i) for i in props['shape_after_cropping_and_before_resampling']]
+            d_out, h_out, w_out = new_shape
+            seg_cropped = np.zeros(new_shape, dtype=np.uint8)
+
+            steps = compute_steps_for_sliding_window((d_padded, h_padded, w_padded),
+                                                     self.configuration_manager.patch_size,
+                                                     self.tile_step_size)
+            z_steps = steps[0]
+            pz, py, px = self.configuration_manager.patch_size
+            C = self.label_manager.num_segmentation_heads
+
+            if self.use_gaussian:
+                gaussian_gpu = compute_gaussian(tuple(self.configuration_manager.patch_size), sigma_scale=1. / 8,
+                                                value_scaling_factor=10, device=self.device)
+                gaussian_cpu = gaussian_gpu.cpu()
+            else:
+                gaussian_gpu = 1
+                gaussian_cpu = 1
+
+            buf_start = 0
+            max_step_z = int(np.max(np.diff(z_steps))) if len(z_steps) > 1 else 0
+            buf_len = min(d_padded, pz + max_step_z + 10)
+            req_ring_bytes = (C + 1) * buf_len * h_padded * w_padded * 2  # FP16 logits + npred
+            forward_peak_and_reserve = 5.5 * 1024**3  # measured forward peak (3.93 GiB) + allocator/workspace safety margin (1.57 GiB)
+            if self.device.type == 'cuda' and (req_ring_bytes + forward_peak_and_reserve <= torch.cuda.get_device_properties(self.device).total_memory):
+                buf_device = self.device
+            else:
+                buf_device = torch.device('cpu')
+
+            logits_buf = torch.zeros((C, buf_len, h_padded, w_padded), dtype=torch.half, device=buf_device)
+            npred_buf = torch.zeros((buf_len, h_padded, w_padded), dtype=torch.half, device=buf_device)
+
+            buf_bytes = logits_buf.numel() * logits_buf.element_size()
+            print(f"[*] Streamed ring buffer: shape={logits_buf.shape}, dtype={logits_buf.dtype}, size={buf_bytes / (1024**3):.2f} GiB ({buf_bytes} bytes) on {buf_device}", flush=True)
+            print(f"[*] Memory check: required_ring={req_ring_bytes / 1024**3:.2f} GiB, forward_peak_reserve={forward_peak_and_reserve / 1024**3:.2f} GiB -> chosen device: {buf_device}", flush=True)
+            if buf_device.type == 'cuda':
+                free_b, tot_b = torch.cuda.mem_get_info()
+                print(f"[*] Initial CUDA mem: allocated={torch.cuda.memory_allocated() / (1024**3):.2f} GiB, reserved={torch.cuda.memory_reserved() / (1024**3):.2f} GiB, free={free_b / (1024**3):.2f} GiB / {tot_b / (1024**3):.2f} GiB", flush=True)
+
+            import time
+            z_src_finalized = 0
+            z_out_finalized = 0
+            t_total_start = time.time()
+
+            for k, sz in enumerate(z_steps):
+                t_k0 = time.time()
+                for sy in steps[1]:
+                    for sx in steps[2]:
+                        sl = (slice(None), slice(sz, sz + pz), slice(sy, sy + py), slice(sx, sx + px))
+                        workon = data_padded[sl][None].to(self.device)
+                        prediction = self._internal_maybe_mirror_and_predict(workon)[0]
+                        if self.use_gaussian:
+                            prediction = prediction * gaussian_gpu
+
+                        r_0 = sz % buf_len
+                        if r_0 + pz <= buf_len:
+                            if buf_device.type == 'cuda':
+                                logits_buf[:, r_0 : r_0 + pz, sy:sy+py, sx:sx+px] += prediction
+                                npred_buf[r_0 : r_0 + pz, sy:sy+py, sx:sx+px] += gaussian_gpu if self.use_gaussian else 1
+                            else:
+                                logits_buf[:, r_0 : r_0 + pz, sy:sy+py, sx:sx+px] += prediction.cpu()
+                                npred_buf[r_0 : r_0 + pz, sy:sy+py, sx:sx+px] += gaussian_cpu
+                        else:
+                            len1 = buf_len - r_0
+                            len2 = pz - len1
+                            if buf_device.type == 'cuda':
+                                logits_buf[:, r_0 : buf_len, sy:sy+py, sx:sx+px] += prediction[:, :len1]
+                                npred_buf[r_0 : buf_len, sy:sy+py, sx:sx+px] += (gaussian_gpu[:len1] if self.use_gaussian else 1)
+                                logits_buf[:, :len2, sy:sy+py, sx:sx+px] += prediction[:, len1:]
+                                npred_buf[:len2, sy:sy+py, sx:sx+px] += (gaussian_gpu[len1:] if self.use_gaussian else 1)
+                            else:
+                                pred_cpu = prediction.cpu()
+                                logits_buf[:, r_0 : buf_len, sy:sy+py, sx:sx+px] += pred_cpu[:, :len1]
+                                npred_buf[r_0 : buf_len, sy:sy+py, sx:sx+px] += (gaussian_cpu[:len1] if self.use_gaussian else 1)
+                                logits_buf[:, :len2, sy:sy+py, sx:sx+px] += pred_cpu[:, len1:]
+                                npred_buf[:len2, sy:sy+py, sx:sx+px] += (gaussian_cpu[len1:] if self.use_gaussian else 1)
+
+                t_infer_k = time.time() - t_k0
+                print(f"[*] Streamed Z-step {k+1}/{len(z_steps)} forward in {t_infer_k:.2f}s", flush=True)
+
+                if k + 1 < len(z_steps):
+                    next_sz = z_steps[k + 1]
+                    z_src_now_finalized = next_sz
+                else:
+                    z_src_now_finalized = d_padded
+
+                if z_src_now_finalized > z_src_finalized:
+                    if k + 1 < len(z_steps):
+                        z_out_limit = int(math.floor((z_src_now_finalized - 0.5) * d_out / d_padded + 0.5))
+                        z_out_limit = min(d_out, max(z_out_finalized, z_out_limit))
+                    else:
+                        z_out_limit = d_out
+
+                    if z_out_limit > z_out_finalized:
+                        t_res0 = time.time()
+                        for chunk_z0 in range(z_out_finalized, z_out_limit, 4):
+                            chunk_z1 = min(chunk_z0 + 4, z_out_limit)
+                            zc = (torch.arange(chunk_z0, chunk_z1, dtype=torch.float64, device=self.device) + 0.5) * (d_padded / d_out) - 0.5
+                            zf = torch.floor(zc)
+                            w_gpu = (zc - zf).float().view(1, -1, 1, 1)
+                            i0_gpu = zf.long().clamp(0, d_padded - 1)
+                            i1_gpu = (zf.long() + 1).clamp(0, d_padded - 1)
+                            min_i = int(i0_gpu.min().item())
+                            max_i = min(d_padded, int(i1_gpu.max().item()) + 1)
+
+                            r_min = min_i % buf_len
+                            if r_min + (max_i - min_i) <= buf_len:
+                                sub_logits = (logits_buf[:, r_min : r_min + (max_i - min_i)] / npred_buf[r_min : r_min + (max_i - min_i)]).float()
+                            else:
+                                phys_indices = [(z % buf_len) for z in range(min_i, max_i)]
+                                sub_logits = (logits_buf[:, phys_indices] / npred_buf[phys_indices]).float()
+
+                            if buf_device.type != 'cuda':
+                                sub_logits = sub_logits.to(self.device)
+
+                            lerped = sub_logits[:, i0_gpu - min_i] * (1 - w_gpu) + sub_logits[:, i1_gpu - min_i] * w_gpu
+                            del sub_logits
+                            nz = lerped.shape[1]
+                            res_gpu = F.interpolate(lerped.reshape(1, C * nz, h_padded, w_padded), size=(h_out, w_out),
+                                                    mode='bilinear', antialias=False).reshape(C, nz, h_out, w_out)
+                            del lerped
+                            seg_cropped[chunk_z0:chunk_z1] = torch.argmax(res_gpu, dim=0).cpu().numpy().astype(np.uint8)
+                            del res_gpu
+                        print(f"[*] Streamed resampled target slices {z_out_finalized}..{z_out_limit} in {time.time() - t_res0:.2f}s", flush=True)
+
+                        z_out_finalized = z_out_limit
+
+                    if k + 1 < len(z_steps):
+                        next_sz = z_steps[k + 1]
+                        next_needed_src = max(0, int(math.floor((z_out_finalized + 0.5) * d_padded / d_out - 0.5)))
+                        new_buf_start = min(next_sz, next_needed_src)
+                        count = new_buf_start - buf_start
+                        if count > 0:
+                            if buf_device.type == 'cuda':
+                                free_b, tot_b = torch.cuda.mem_get_info()
+                                print(f"[*] Advance ring window [{buf_start} -> {new_buf_start}): allocated={torch.cuda.memory_allocated() / (1024**3):.2f} GiB, reserved={torch.cuda.memory_reserved() / (1024**3):.2f} GiB, free={free_b / (1024**3):.2f} GiB", flush=True)
+
+                            r_a = buf_start % buf_len
+                            if count >= buf_len:
+                                logits_buf.zero_()
+                                npred_buf.zero_()
+                            elif r_a + count <= buf_len:
+                                logits_buf[:, r_a : r_a + count].zero_()
+                                npred_buf[r_a : r_a + count].zero_()
+                            else:
+                                len1 = buf_len - r_a
+                                len2 = count - len1
+                                logits_buf[:, r_a : buf_len].zero_()
+                                logits_buf[:, :len2].zero_()
+                                npred_buf[r_a : buf_len].zero_()
+                                npred_buf[:len2].zero_()
+
+                            buf_start = new_buf_start
+
+                    z_src_finalized = z_src_now_finalized
+
+            print(f"[*] Streamed full inference + resampling done in {time.time() - t_total_start:.2f}s", flush=True)
+
+            seg_full = np.zeros([int(i) for i in props['shape_before_cropping']], dtype=np.uint8)
+            seg_full[tuple(slice(b[0], b[1]) for b in props['bbox_used_for_cropping'])] = seg_cropped
+            return seg_full.transpose(self.plans_manager.transpose_backward)
 
 
 def predict_entry_point_modelfolder():

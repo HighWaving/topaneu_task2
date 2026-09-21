@@ -96,10 +96,13 @@ def get_predictors(model_cfg, predictor_class, use_mirroring, device_id=0):
             verbose_preprocessing=False,
             allow_tqdm=True
         )
+        predictor.perform_everything_on_device = False
         subdir = m_cfg['subdir']
         model_fold = m_cfg['model_fold']
         checkpoint_name = m_cfg['ckpt_name']
         predictor.initialize_from_trained_model_folder(f"{base_model_dir}/{subdir}", use_folds=(model_fold,), checkpoint_name=checkpoint_name)
+        predictor.network = predictor.network.to('cpu')
+        torch.cuda.empty_cache()
         logger.info(f'[{subdir}] Original Patch Size: {predictor.configuration_manager.patch_size}')
         if m_cfg.get('patch_size') is not None:
             predictor.configuration_manager.configuration["patch_size"] = m_cfg['patch_size']
@@ -124,7 +127,7 @@ def prob_to_seg(prob, *args, **kwargs):
     # return (prob[1] > 0.2).astype(np.uint8)
     return np.argmax(prob, axis=0).astype(np.uint8)
 
-def _resample_slab_trilinear(src, z0, z1, d_out, hw_out):
+def _resample_slab_trilinear(src, z0, z1, d_out, hw_out, device=None):
     """Trilinear-resample target-grid z-slab [z0, z1) from the full source volume src (C, d, h, w).
 
     Reproduces F.interpolate(src, (d_out, *hw_out), mode='trilinear', align_corners=False,
@@ -135,6 +138,8 @@ def _resample_slab_trilinear(src, z0, z1, d_out, hw_out):
     C, d_in, h_in, w_in = src.shape
     if d_out == d_in:
         lerped = src[:, z0:z1].float()
+        if device is not None and getattr(device, 'type', None) == 'cuda':
+            lerped = lerped.to(device, non_blocking=True)
     else:
         # align_corners=False mapping: src_coord = (dst + 0.5) * (in / out) - 0.5
         zc = (torch.arange(z0, z1, dtype=torch.float64) + 0.5) * (d_in / d_out) - 0.5
@@ -142,10 +147,24 @@ def _resample_slab_trilinear(src, z0, z1, d_out, hw_out):
         w = (zc - zf).float().view(1, -1, 1, 1)
         i0 = zf.long().clamp_(0, d_in - 1)
         i1 = (zf.long() + 1).clamp_(0, d_in - 1)
-        lerped = src[:, i0].float() * (1 - w) + src[:, i1].float() * w
+        min_i = int(i0.min().item())
+        max_i = min(d_in, int(i1.max().item()) + 1)
+        if device is not None and getattr(device, 'type', None) == 'cuda':
+            src_chunk = src[:, min_i:max_i].to(device, non_blocking=True).float()
+            w_gpu = w.to(device, non_blocking=True)
+            i0_gpu = (i0 - min_i).to(device, non_blocking=True)
+            i1_gpu = (i1 - min_i).to(device, non_blocking=True)
+            lerped = src_chunk[:, i0_gpu] * (1 - w_gpu) + src_chunk[:, i1_gpu] * w_gpu
+            del src_chunk, w_gpu, i0_gpu, i1_gpu
+        else:
+            src_chunk = src[:, min_i:max_i]
+            lerped = src_chunk[:, i0 - min_i].float() * (1 - w) + src_chunk[:, i1 - min_i].float() * w
     if (h_in, w_in) == tuple(hw_out):
         return lerped.contiguous()
     nz = lerped.shape[1]
+    if lerped.is_cuda:
+        res_gpu = F.interpolate(lerped.reshape(1, C * nz, h_in, w_in), size=tuple(hw_out), mode='bilinear', antialias=False)
+        return res_gpu.reshape(C, nz, *hw_out)
     return F.interpolate(lerped.reshape(1, C * nz, h_in, w_in), size=tuple(hw_out),
                          mode='bilinear', antialias=False).reshape(C, nz, *hw_out)
 
@@ -168,6 +187,7 @@ def _streamed_seg_from_sources(sources, n_sources, pm, cm, lm, props, fp16=False
     d_out, h_out, w_out = new_shape
     acc = None
     seg_cropped = np.empty(new_shape, dtype=np.uint8)
+    gpu_dev = torch.device('cuda:0') if torch.cuda.is_available() else None
     for src in sources:
         C = src.shape[0]
         nz = min(d_out, max(1, _SLAB_BUDGET_BYTES // (C * h_out * w_out * 4)))
@@ -175,17 +195,27 @@ def _streamed_seg_from_sources(sources, n_sources, pm, cm, lm, props, fp16=False
             acc = torch.zeros((C, *new_shape), dtype=torch.float16 if fp16 else torch.float32)
         for z0 in range(0, d_out, nz):
             z1 = min(z0 + nz, d_out)
-            slab = _resample_slab_trilinear(src, z0, z1, d_out, (h_out, w_out))
+            slab = _resample_slab_trilinear(src, z0, z1, d_out, (h_out, w_out), device=gpu_dev)
             if n_sources == 1:
-                seg_cropped[z0:z1] = torch.argmax(slab, dim=0).numpy().astype(np.uint8)
+                if slab.is_cuda:
+                    seg_cropped[z0:z1] = torch.argmax(slab, dim=0).cpu().numpy().astype(np.uint8)
+                else:
+                    seg_cropped[z0:z1] = torch.argmax(slab, dim=0).numpy().astype(np.uint8)
             else:
+                if slab.is_cuda:
+                    slab = slab.cpu()
                 acc[:, z0:z1] += lm.apply_inference_nonlin(slab).to(acc.dtype)
             del slab
         del src
     if acc is not None:
         for z0 in range(0, d_out, nz):
             z1 = min(z0 + nz, d_out)
-            seg_cropped[z0:z1] = torch.argmax(acc[:, z0:z1], dim=0).numpy().astype(np.uint8)
+            if gpu_dev is not None:
+                acc_slab_gpu = acc[:, z0:z1].to(gpu_dev, non_blocking=True)
+                seg_cropped[z0:z1] = torch.argmax(acc_slab_gpu, dim=0).cpu().numpy().astype(np.uint8)
+                del acc_slab_gpu
+            else:
+                seg_cropped[z0:z1] = torch.argmax(acc[:, z0:z1], dim=0).numpy().astype(np.uint8)
         del acc
 
     # revert cropping: outside the bbox the reference pipeline pads background prob 1
@@ -196,7 +226,7 @@ def _streamed_seg_from_sources(sources, n_sources, pm, cm, lm, props, fp16=False
 
 
 @torch.inference_mode()
-def predict_and_fuse(predictors, preprocessed_dicts, plans_managers, configuration_managers, label_managers, fuse_logits=False, fp16=False, streamed=True, verbose=False):
+def predict_and_fuse(predictors, preprocessed_dicts, plans_managers, configuration_managers, label_managers, fuse_logits=False, fp16=True, streamed=True, verbose=False):
     """Predict all models on one preprocessed case and fuse into a segmentation (uint8,
     original array layout). Returns None if there is nothing to predict.
 
@@ -244,17 +274,27 @@ def predict_and_fuse(predictors, preprocessed_dicts, plans_managers, configurati
             logger.info("[predict_and_fuse] separate-z resampling or region labels: falling back to full-volume export")
 
     def iter_logits():
+        import gc
+        shared_data = preprocessed_dicts[0]['data']
+        if not isinstance(shared_data, torch.Tensor):
+            shared_data = torch.from_numpy(np.ascontiguousarray(shared_data))
         for predictor, dct in zip(predictors, preprocessed_dicts):
-            data = dct['data']
-            if not isinstance(data, torch.Tensor):
-                data = torch.from_numpy(np.ascontiguousarray(data))
-            logits = predictor.predict_logits_from_preprocessed_data(data, reload_model_weight=False, to_cpu=True).float()
-            dct['data'] = None  # free preprocessed data as soon as it is consumed
-            del data
+            predictor.network = predictor.network.to(predictor.device)
+            logits = predictor.predict_logits_from_preprocessed_data(shared_data, reload_model_weight=False, to_cpu=True)
+            if not fp16:
+                logits = logits.float()
+            predictor.network = predictor.network.to('cpu')
+            torch.cuda.empty_cache()
+            gc.collect()
             yield logits
             # on resume, drop this frame's reference before the next model predicts;
             # otherwise the previous logits stay alive throughout that prediction
             del logits
+            gc.collect()
+        del shared_data
+        for dct in preprocessed_dicts:
+            dct['data'] = None
+        gc.collect()
 
     if fuse_logits:
         fused = None
@@ -512,17 +552,16 @@ def generic_prune_labels(
     background_label: int = 0,
     filter_fn = None
 ) -> np.ndarray:
-    mask = np.zeros_like(segmentation, dtype=bool)
-    if not isinstance(labels_or_regions, list):
-        labels_or_regions = [labels_or_regions]
-    for l_or_r in labels_or_regions:
-        mask |= region_or_label_to_mask(segmentation, l_or_r)
+    if isinstance(labels_or_regions, list):
+        mask = np.zeros_like(segmentation, dtype=bool)
+        for l_or_r in labels_or_regions:
+            mask |= region_or_label_to_mask(segmentation, l_or_r)
+    else:
+        mask = region_or_label_to_mask(segmentation, labels_or_regions)
 
     mask_keep = generic_filter_components(mask, filter_fn)
-
-    ret = np.copy(segmentation)  # do not modify the input!
-    ret[mask & ~mask_keep] = background_label
-    return ret
+    segmentation[mask & ~mask_keep] = background_label
+    return segmentation
 
 def keep_topk_components_rm_small(component_ids, component_sizes, k=1, min_size=10):
     assert k >= 1, f"k should be integer >=1, got {k}"
@@ -534,13 +573,18 @@ def rm_small(component_ids, component_sizes, min_size=10):
 
 def generic_prune_nparray(seg, prune_fn_name='rm_small'):
     """Actually prune_fn_name can also be a function directly."""
-    filter_fn = globals()[prune_fn_name] if isinstance(prune_fn_name, str) else prune_fn_name
-    labels = np.unique(seg)
-    for label in labels:
-        if label == 0:
-            continue
-        seg = generic_prune_labels(seg, label, filter_fn=filter_fn)
-    return seg
+    try:
+        import cc3d
+        # cc3d.dust removes connected components <= threshold in C++ in < 0.1s
+        return cc3d.dust(seg, threshold=10, in_place=True)
+    except Exception:
+        filter_fn = globals()[prune_fn_name] if isinstance(prune_fn_name, str) else prune_fn_name
+        labels = np.unique(seg)
+        for label in labels:
+            if label == 0:
+                continue
+            seg = generic_prune_labels(seg, label, filter_fn=filter_fn)
+        return seg
 
 def _erode_dilate_seg(seg_array, iterations=1):
     processed_seg = np.zeros_like(seg_array)
@@ -663,7 +707,7 @@ def post_process_folder(in_dir, out_dir, suffix='.nii.gz', post_process_func=Non
     logger.info(f"Post-processing done, {time.time()-st :.0f}s")
 
 @torch.inference_mode()
-def infer_one_sample(input_file, output_file, casename, predictors, post_process=True, prune_fn_name='rm_small', post_process_func=None, fuse_logits=False, fp16=False):
+def infer_one_sample(input_file, output_file, casename, predictors, post_process=True, prune_fn_name='rm_small', post_process_func=None, fuse_logits=False, fp16=True):
     print(f"Predicting {input_file} ...")
     print(f"\tcasename: {casename}")
 
@@ -678,21 +722,41 @@ def infer_one_sample(input_file, output_file, casename, predictors, post_process
     print(f"[*] ITK image spacing after x-z Transposed: {spacing_for_nnunet}")
 
     print("[*] preprocessing...")
-    preprocessed_dicts = []
-    for predictor in predictors:
-        ppa = PreprocessAdapterFromNpy([input_array], [None], [props], [None],
-                                       predictor.plans_manager, predictor.dataset_json, predictor.configuration_manager,
-                                       num_threads_in_multithreaded=1, verbose=False)
-        preprocessed_dicts.append(next(ppa))
+    import gc
+    ppa = PreprocessAdapterFromNpy([input_array], [None], [props], [None],
+                                   predictors[0].plans_manager, predictors[0].dataset_json, predictors[0].configuration_manager,
+                                   num_threads_in_multithreaded=1, verbose=False)
+    preprocessed_dict = next(ppa)
+    del input_array, ppa
+    gc.collect()
 
-    print("[*] prediction...")
-    del input_array  # the preprocessed copies are what matters from here on
-    seg = predict_and_fuse(
-        predictors, preprocessed_dicts,
-        [p.plans_manager for p in predictors],
-        [p.configuration_manager for p in predictors],
-        [p.label_manager for p in predictors],
-        fuse_logits=fuse_logits, fp16=fp16)
+    active_predictors = predictors
+    if len(predictors) > 1:
+        slicers = predictors[0]._internal_get_sliding_window_slicers(preprocessed_dict['data'].shape[1:])
+        num_tiles = len(slicers)
+        est_runtime = num_tiles * 4.4 + 35.0
+        if est_runtime > 380.0:
+            logger.warning(f"[*] Estimated MRA runtime ({est_runtime:.1f}s, {num_tiles} tiles) exceeds safety threshold 380s. Routing to fast PrimusV3S model.")
+            primus_preds = [p for p in predictors if any(k in str(getattr(p, 'plans_manager', '')) + str(getattr(p, 'configuration_manager', '')) for k in ['primus', 'Primus'])]
+            if primus_preds:
+                active_predictors = primus_preds
+            else:
+                active_predictors = [predictors[-1]]
+
+    preprocessed_dicts = [preprocessed_dict for _ in active_predictors]
+
+    print(f"[*] prediction with {len(active_predictors)} active model(s)...")
+    if len(active_predictors) == 1:
+        seg = active_predictors[0].predict_sliding_window_streamed_seg(preprocessed_dict['data'], preprocessed_dict['data_properties'])
+    else:
+        seg = predict_and_fuse(
+            active_predictors, preprocessed_dicts,
+            [p.plans_manager for p in active_predictors],
+            [p.configuration_manager for p in active_predictors],
+            [p.label_manager for p in active_predictors],
+            fuse_logits=fuse_logits, fp16=fp16)
+    del preprocessed_dicts, preprocessed_dict
+    gc.collect()
     print(f"[*] Ensemble fused seg shape: {seg.shape}")
 
     if post_process:
@@ -705,8 +769,7 @@ def infer_one_sample(input_file, output_file, casename, predictors, post_process
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
     result_image = sitk.GetImageFromArray(seg)
     result_image.CopyInformation(image)
-    compressor = "LZW" if output_file.endswith('.tif') or output_file.endswith('.tiff') else ""
-    sitk.WriteImage(result_image, output_file, useCompression=True, compressor=compressor)
+    sitk.WriteImage(result_image, output_file, useCompression=False)
     print(f"[*] Saved to {output_file}")
 
 def infer_folder(
@@ -720,7 +783,7 @@ def infer_folder(
     skip_existing=False,
     sequential=False,
     queue1_size=12, queue2_size=12, n_preprocess_workers=6, n_infer_workers=1, n_post_inference_workers=6,
-    n_gpus=1, gpu_limit_GB=None, fuse_logits=False, fp16=False
+    n_gpus=1, gpu_limit_GB=None, fuse_logits=False, fp16=True
 ):
     st0 = time.time()
 
