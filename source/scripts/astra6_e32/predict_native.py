@@ -20,7 +20,17 @@ def main():
  p.add_argument('--fp-threshold',type=float,required=True);p.add_argument('--arm',choices=['normalized'],required=True);p.add_argument('--device',default='cuda:0');a=p.parse_args();assert 0<=a.fp_threshold<=1;torch.set_num_threads(2);start=time.monotonic()
  image=nib.load(str(a.image));aff=image.affine;arr=image.get_fdata(dtype=np.float32);assert np.isfinite(arr).all();sub=arr[::4,::4,::4];sub=sub[sub!=0];assert len(sub);lo,hi=np.percentile(sub,[.5,99.5]);arr-=float(lo);arr/=max(float(hi-lo),1e-6);np.clip(arr,0,1,out=arr)
  vi=nib.load(str(a.predicted_vessel));assert vi.shape==arr.shape and np.allclose(vi.affine,aff,atol=1e-4);vessel=np.asanyarray(vi.dataobj);assert vessel.min()>=0 and vessel.max()<=36
- geom=vessel_geometry_fast(a.predicted_vessel,arr.shape,aff);classifier=joblib.load(a.classifier);classifier.n_jobs=2;assert classifier.n_features_in_==943
+ try:
+  geom=vessel_geometry_fast(a.predicted_vessel,arr.shape,aff)
+ except ValueError as e:
+  if 'empty predicted vessel union' in str(e):geom=None
+  else:raise
+ if geom is None:
+  ref=sitk.ReadImage(str(a.image));out=sitk.Image(ref.GetSize(),sitk.sitkUInt8);out.CopyInformation(ref)
+  a.output.parent.mkdir(parents=True,exist_ok=True);sitk.WriteImage(out,str(a.output),True)
+  a.output.with_suffix('.json').write_text(json.dumps({'seconds':time.monotonic()-start,'candidates':[],'empty_vessel':True},indent=2)+'\n')
+  return
+ classifier=joblib.load(a.classifier);classifier.n_jobs=2;assert classifier.n_features_in_==943
  filter_model=load_filter(a.fp_filter,a.device);net=Model().to(a.device).eval();state=torch.load(a.segmentation,map_location='cpu',weights_only=False);assert state['arm']==a.arm;net.load_state_dict(state['state_dict']);backup=Segmenter().to(a.device).eval();backup.load_state_dict(torch.load(a.fallback_segmentation,map_location='cpu',weights_only=False)['state_dict'])
  boxes,scores,_=load_boxes(a.boxes);selected=select_candidates(boxes,scores);mask=np.zeros(arr.shape,np.uint8);ledger=[]
  for idx,score,low,high in reversed(selected):

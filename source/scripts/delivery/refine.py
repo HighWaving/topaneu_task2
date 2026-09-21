@@ -13,7 +13,13 @@ from scripts.astra6_e04.run_e04 import Segmenter,crop_volume,PRIOR,largest
 def predict(image,vessel,boxes,classifier,segmentation=None,device='cpu',modality='MR'):
  raw=nib.load(str(image));aff=raw.affine;arr=raw.get_fdata(dtype=np.float32);shape=arr.shape
  if not np.isfinite(arr).all():raise ValueError('nonfinite image')
- geom=vessel_geometry_fast(vessel,shape,aff);clf=joblib.load(classifier);bx,sc,_=load_boxes(boxes);selected=select_candidates(bx,sc)
+ try:
+  geom=vessel_geometry_fast(vessel,shape,aff)
+ except ValueError as e:
+  if 'empty predicted vessel union' in str(e):geom=None
+  else:raise
+ if geom is None:return np.zeros(shape,np.uint8),[]
+ clf=joblib.load(classifier);bx,sc,_=load_boxes(boxes);selected=select_candidates(bx,sc)
  feature_version=getattr(clf,'feature_version',None)
  if feature_version not in (None,'mask_contact_v1','E27_junction_v1'):raise ValueError('unknown classifier feature version')
  junctions=None
@@ -26,7 +32,7 @@ def predict(image,vessel,boxes,classifier,segmentation=None,device='cpu',modalit
  if segmentation:
   model=Segmenter().to(device);model.load_state_dict(torch.load(segmentation,map_location=device,weights_only=False)['state_dict']);model.eval()
   sub=arr[::4,::4,::4];sub=sub[sub!=0]
-  if not len(sub):raise ValueError('empty image')
+  if not len(sub):return np.zeros(shape,np.uint8),[]
   low,high=np.percentile(sub,[.5,99.5]);arr-=float(low);arr/=max(float(high-low),1e-6);np.clip(arr,0,1,out=arr)
  mask=np.zeros(shape,np.uint8);ledger=[]
  for idx,score,low,high in reversed(selected):

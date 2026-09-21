@@ -32,6 +32,11 @@ def main():
  tenv=env.copy();tenv['PYTHONPATH']=os.pathsep.join([str(P/'vendor/delivery_runtime_deps'),str(app/'vendor')]);tenv['TOPANEU_MODEL_ROOT']=str(mdir/'ta36')
  stage('ta36',[a.refinement_python,P/'scripts/delivery/ta36_cached_preprocessing.py',app/'ta36/run_inference.py','--input',ti,'--output',to,'--suffix','_0000.nii.gz','--sequential','--n_infer_workers','1','--n_pre_post_workers','1'],app,tenv)
  original=nib.load(raw);vessel=resample_from_to(nib.load(to/'case.nii.gz'),original,order=0);vpath=a.work/'predicted_vessel.nii.gz';nib.Nifti1Image(np.asarray(vessel.dataobj,dtype=np.uint8),original.affine,original.header.copy()).to_filename(vpath)
+ if not np.any(np.asarray(vessel.dataobj)>0):
+  import SimpleITK as sitk
+  ref=sitk.ReadImage(str(raw));out=sitk.Image(ref.GetSize(),sitk.sitkUInt8);out.CopyInformation(ref);a.output.parent.mkdir(parents=True,exist_ok=True);sitk.WriteImage(out,str(a.output),True)
+  times.update(total_seconds=time.monotonic()-began,empty_vessel=True,child_peak_rss_kb=resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss,T4_validated=False)
+  (a.work/'runtime.json').write_text(json.dumps(times,indent=2)+'\n');print(times,flush=True);return
  stage('refinement',[a.refinement_python,'-m','scripts.delivery.refine_dense_fusion','--image',raw,'--predicted-vessel',vpath,'--boxes',a.work/'boxes/case_boxes.pkl','--dense',a.work/'dense/candidates.json','--classifier',classifier,'--segmentation',str(mdir/'segmentation_MR.pt'),'--detector-threshold',d,'--dense-threshold',q,'--policy',a.policy,'--output',a.output],P,env)
  times.update(total_seconds=time.monotonic()-began,within720_seconds_on_V100=time.monotonic()-began<=720,child_peak_rss_kb=resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss,T4_validated=False,container_validated=False,source_policy={'detector':d,'dense':q},classifier=str(classifier),inference_policy=a.policy,image_only_no_GT=True)
  (a.work/'runtime.json').write_text(json.dumps(times,indent=2)+'\n');print(times,flush=True)

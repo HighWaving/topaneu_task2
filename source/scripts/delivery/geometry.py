@@ -3,11 +3,13 @@ import numpy as np
 from scipy.spatial import cKDTree
 from scripts.astra6_e01.e01_common import load_nifti,affine_world
 
-def vessel_geometry_fast(vessel_path,image_shape,image_affine):
+def vessel_geometry_fast(vessel_path,image_shape,image_affine,allow_empty=True):
  arr,aff,shape=load_nifti(vessel_path)
  if shape!=image_shape or not np.allclose(aff,image_affine,atol=1e-4):raise ValueError('vessel/image geometry mismatch')
  coords=np.argwhere(arr>0)
- if not len(coords):raise ValueError('empty predicted vessel union')
+ if not len(coords):
+  if allow_empty:return None
+  raise ValueError('empty predicted vessel union')
  labels=arr[tuple(coords.T)];world=affine_world(aff,coords);p01,p99=np.percentile(world,[1,99],axis=0);gm=(p01+p99)/2;gs=np.maximum(p99-p01,1.)
  trees={};sm={};ss={}
  for v in range(1,37):

@@ -15,7 +15,17 @@ def main():
  p.add_argument('--policy',choices=['dense_fusion','detector_control'],default='dense_fusion');p.add_argument('--detector-threshold',type=float,required=True);p.add_argument('--dense-threshold',type=float,required=True);a=p.parse_args();began=time.monotonic();torch.set_num_threads(1);torch.set_num_interop_threads(1)
  image,aff,norm=normalized_image(a.image);dense=json.loads(a.dense.read_text());assert list(image.shape)==dense['native_shape'] and np.allclose(aff,dense['affine'],atol=1e-4)
  net=Model().cuda().eval();state=torch.load(a.segmentation,map_location='cpu',weights_only=False);assert state['arm']=='normalized';net.load_state_dict(state['state_dict'])
- geom=vessel_geometry_fast(a.predicted_vessel,image.shape,aff);classifier=joblib.load(a.classifier);classifier.n_jobs=1
+ try:
+  geom=vessel_geometry_fast(a.predicted_vessel,image.shape,aff)
+ except ValueError as e:
+  if 'empty predicted vessel union' in str(e):geom=None
+  else:raise
+ if geom is None:
+  mask=np.zeros(image.shape,np.uint8)
+  nifti_output(mask,a.image,a.output);np.savez_compressed(a.output.with_suffix('.npz'))
+  a.output.with_suffix('.json').write_text(json.dumps({'candidates':[],'inference_policy':a.policy,'normalization':norm,'seconds':time.monotonic()-began,'empty_vessel':True},indent=2)+'\n')
+  return
+ classifier=joblib.load(a.classifier);classifier.n_jobs=1
  boxes,scores,_=load_boxes(a.boxes);rows=[];arrays={}
  def refine(low,high):
   crop,origin,step=input_crop(image,np.zeros((1,1,1),np.uint8),low,high,aff,'normalized')

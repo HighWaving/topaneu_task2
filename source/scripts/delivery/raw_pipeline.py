@@ -37,6 +37,10 @@ def main():
  ta36_command=[seg,P/'scripts/delivery/ta36_cached_preprocessing.py',app/'ta36/run_inference.py'] if a.cache_ta36_preprocessing else [seg,app/'ta36/run_inference.py']
  run(ta36_command+['--input',ti,'--output',to,'--suffix','_0000.nii.gz','--sequential','--n_infer_workers','1','--n_pre_post_workers','1'],app,tenv,a.work/'ta36.log')
  original=nib.load(raw);vessel=resample_from_to(nib.load(to/'case.nii.gz'),original,order=0);vpath=a.work/'predicted_vessel.nii.gz';nib.Nifti1Image(np.asarray(vessel.dataobj,dtype=np.uint8),original.affine).to_filename(vpath);times['ta36_including_reorientation']=time.monotonic()-t
+ if not np.any(np.asarray(vessel.dataobj)>0):
+  ref=sitk.ReadImage(str(raw));out=sitk.Image(ref.GetSize(),sitk.sitkUInt8);out.CopyInformation(ref);a.output.parent.mkdir(parents=True,exist_ok=True);sitk.WriteImage(out,str(a.output),True)
+  times.update(total_seconds=time.monotonic()-start,empty_vessel=True,child_peak_rss_kb=resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss,T4_validated=False)
+  (a.work/'runtime.json').write_text(json.dumps(times,indent=2));print(times);return
  filter_path=a.fp_filter or cfg.get(a.modality+'_fp_filter',cfg.get('fp_filter'));filter_threshold=a.fp_threshold if a.fp_threshold is not None else cfg.get(a.modality+'_fp_threshold',cfg.get('fp_threshold'))
  anatomical_filter=cfg.get(a.modality+'_anatomical_filter');anatomical_threshold=cfg.get(a.modality+'_anatomical_threshold')
  if anatomical_filter and (not filter_path or anatomical_threshold is None):raise ValueError('anatomical filter requires image filter and threshold')

@@ -11,7 +11,18 @@ from scripts.delivery.refine import predict
 
 def native(image,vessel,boxes,classifier,segmentation,image_filter,image_threshold,anatomical_filter,anatomical_threshold,output,device):
  start=time.monotonic();torch.set_num_threads(4);clf=joblib.load(anatomical_filter);assert clf.feature_version=='anatomical_fp_v1' and sha256_file(image_filter)==clf.required_image_filter_sha256
- im=nib.load(str(image));arr=im.get_fdata(dtype=np.float32);aff=im.affine;geom=vessel_geometry_fast(vessel,arr.shape,aff);sub=arr[::4,::4,::4];sub=sub[sub!=0];assert len(sub) and np.isfinite(arr).all();lo,hi=np.percentile(sub,[.5,99.5]);arr-=float(lo);arr/=max(float(hi-lo),1e-6);np.clip(arr,0,1,out=arr)
+ im=nib.load(str(image));arr=im.get_fdata(dtype=np.float32);aff=im.affine
+ try:
+  geom=vessel_geometry_fast(vessel,arr.shape,aff)
+ except ValueError as e:
+  if 'empty predicted vessel union' in str(e):geom=None
+  else:raise
+ if geom is None:
+  ref=sitk.ReadImage(str(image));out=sitk.Image(ref.GetSize(),sitk.sitkUInt8);out.CopyInformation(ref);output.parent.mkdir(parents=True,exist_ok=True);sitk.WriteImage(out,str(output),True);write_json(output.with_suffix('.json'),{'seconds':time.monotonic()-start,'peak_rss_kb':resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,'decisions':[],'candidates':[],'no_refill':True,'native_geometry':True,'empty_vessel':True});return np.zeros(arr.shape,dtype=np.uint8)
+ sub=arr[::4,::4,::4];sub=sub[sub!=0]
+ if not len(sub) or not np.isfinite(arr).all():
+  ref=sitk.ReadImage(str(image));out=sitk.Image(ref.GetSize(),sitk.sitkUInt8);out.CopyInformation(ref);output.parent.mkdir(parents=True,exist_ok=True);sitk.WriteImage(out,str(output),True);write_json(output.with_suffix('.json'),{'seconds':time.monotonic()-start,'peak_rss_kb':resource.getrusage(resource.RUSAGE_SELF).ru_maxrss,'decisions':[],'candidates':[],'no_refill':True,'native_geometry':True,'empty_input':True});return np.zeros(arr.shape,dtype=np.uint8)
+ lo,hi=np.percentile(sub,[.5,99.5]);arr-=float(lo);arr/=max(float(hi-lo),1e-6);np.clip(arr,0,1,out=arr)
  net=Filter().to(device);net.load_state_dict(torch.load(image_filter,map_location='cpu',weights_only=False)['state_dict']);net.eval();bx,sc,obj=load_boxes(boxes);filtered=np.zeros_like(sc);decisions=[]
  for idx,score,low,high in select_candidates(bx,sc):
   with torch.inference_mode():prob=float(net(torch.from_numpy(crops(arr,aff,low,high)[None]).to(device)).sigmoid().cpu()[0])
